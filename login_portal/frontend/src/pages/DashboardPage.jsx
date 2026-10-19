@@ -7,7 +7,7 @@ export default function DashboardPage() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#0E1117' }}>
       <iframe
         src="http://127.0.0.1:8501"
-        title="Pakistan Renewable Energy Outlook Dashboard"
+        title="Pakistan National Energy Analytics Platform"
         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"

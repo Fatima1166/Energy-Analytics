@@ -9,6 +9,9 @@ ICONS = {
     "cost":       "fa-solid fa-dollar-sign",
     "data":       "fa-solid fa-magnifying-glass-chart",
     "insights":   "fa-solid fa-lightbulb",
+    "sustainability": "fa-solid fa-seedling",
+    "strategy":   "fa-solid fa-chess-knight",
+    "route":      "fa-solid fa-route",
 
     # KPI icons
     "primary_energy": "fa-solid fa-oil-well",

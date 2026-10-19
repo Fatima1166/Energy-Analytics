@@ -24,7 +24,7 @@ from core.projections import (
     project_system_metrics,
     merge_co2_vs_re,
 )
-from core.components import dashboard_footer, kpi_card, section_title, impact_metric
+from core.components import kpi_card, section_title, impact_metric
 from core.icons import icon
 from core.units import DOMAINS, DOMAIN_ORDER, fmt, from_base
 from core.unit_slicer import get_units
@@ -80,16 +80,6 @@ def _sidebar_filters():
         index=scenario_keys.index("Accelerated") if "Accelerated" in scenario_keys else 0,
     )
 
-    default_growth = float(SCENARIOS[selected_scenario]["solar"])
-    custom_growth = st.sidebar.slider(
-        "Growth Rate %",
-        min_value=0.0,
-        max_value=30.0,
-        value=default_growth,
-        step=0.5,
-        help="Annual solar and wind growth applied to the selected scenario.",
-    )
-
     year_range = st.sidebar.slider(
         "Year Range",
         min_value=2000,
@@ -100,11 +90,21 @@ def _sidebar_filters():
               "you pick, so narrowing the range moves them."),
     )
 
+    default_growth = float(SCENARIOS[selected_scenario]["solar"])
+    with st.sidebar.expander("Custom Growth Parameter", expanded=False):
+        custom_growth = st.slider(
+            "Growth Rate %",
+            min_value=0.0,
+            max_value=30.0,
+            value=default_growth,
+            step=0.5,
+            help="Annual solar and wind growth applied to the selected scenario.",
+        )
+
     return {
         "scenario": selected_scenario,
         "growth_rate": custom_growth,
         "year_range": year_range,
-        "target_year": 2035,
     }
 
 
@@ -488,21 +488,3 @@ def render():
             f"{view_year} at {end_intensity:,.0f} kgCO₂/MWh"
             + (f"; {best_name} leads on avoided CO₂."
                if best_name != filters["scenario"] else ", the strongest scenario here."))
-
-    st.markdown(
-        dashboard_footer(
-            scope_line=(f"Showing {filters['year_range'][0]}–{view_year} · "
-                        f"scenario {filters['scenario']} at "
-                        f"{filters['growth_rate']:.1f}% annual growth · "
-                        f"six charts"),
-            method_line=(f"Compounded from the last reported year (2024); "
-                         f"KPI cards are judged on {view_year}. {lead}"),
-            source_line=("World Bank · EIA · Pakistan Energy Yearbook "
-                         "(generation, capacity and emissions to 2024)"),
-            note=(f"Projected, not measured: every year after 2024 is modelled "
-                  f"from the scenario's growth rate."
-                  if view_year > 2024 else None),
-            icon_name="scenario",
-        ),
-        unsafe_allow_html=True,
-    )

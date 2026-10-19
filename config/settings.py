@@ -1,8 +1,8 @@
 import os
 
 # ---------- App-level settings ----------
-APP_TITLE = "What are the potential outcomes of installing renewable energy sources in different energy scenarios?"
-APP_SUBTITLE = "Question 2 Analysis  •  Comparative Scenario Simulation: Generation Mix, CO₂ Avoidance & LNG Savings (1999–2035)"
+APP_TITLE = "Pakistan National Energy Analytics Platform"
+APP_SUBTITLE = "Enterprise Decision-Grade Modeling, Scenario Projections & Optimization (1999–2035)"
 APP_ICON = "⚡"
 
 # Which login guards this dashboard:

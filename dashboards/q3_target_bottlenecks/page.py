@@ -13,7 +13,7 @@ from core.bottleneck_metrics import (
     PROJECTED,
     build_dashboard_data,
 )
-from core.components import dashboard_footer, section_title
+from core.components import section_title
 from core.queries import (
     Q_ENERGY_OVERVIEW,
     Q_NATURAL_GAS,
@@ -94,69 +94,59 @@ def _kpi_card(reading, rank: int | None) -> str:
     colour = reading.color
     gap = reading.gap
 
-    arrow = "▲" if reading.yoy > 0 else ("▼" if reading.yoy < 0 else "▬")
+    arrow = "\u25b2" if reading.yoy > 0 else ("\u25bc" if reading.yoy < 0 else "\u25ac")
     yoy_good = (reading.yoy < 0) if reading.direction == "lower" else (reading.yoy > 0)
     yoy_colour = "#10B981" if yoy_good else "#EF4444"
 
     rank_html = ""
     if rank is not None and rank <= 2 and not reading.on_track:
-        rank_html = (f'<span style="background:rgba(239,68,68,0.18);color:#EF4444;'
-                     f'font-size:9px;font-weight:800;padding:1px 7px;border-radius:20px;'
-                     f'border:1px solid rgba(239,68,68,0.4);">#{rank} BOTTLENECK</span>')
+        rank_html = (f'<span style="color:#EF4444;font-size:8px;font-weight:700;">'
+                     f'#{rank} bottleneck</span>')
 
     return f"""
 <div style="
-    background: linear-gradient(135deg, rgba(22,27,38,0.95) 0%, rgba(14,18,26,0.98) 100%);
-    border: 1px solid {sev['color']}55;
-    border-radius: 14px;
-    padding: 15px 16px 14px;
+    background: #161B26;
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+    height: 130px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     position: relative;
-    overflow: hidden;
-    height: 100%;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    width: 100%;
+    border-left: 3px solid {colour};
 ">
-  <div style="position:absolute;top:0;left:0;right:0;height:2.5px;
-              background:linear-gradient(90deg,{colour}00,{colour},{colour}00);"></div>
-
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:31px;height:31px;background:{colour}22;border:1px solid {colour}44;
-                  border-radius:8px;display:flex;align-items:center;justify-content:center;
-                  color:{colour};font-size:12px;">
-        <i class="fa-solid {reading.icon}"></i>
-      </div>
-      <div>
-        <div style="color:#94A3B8;font-size:9.5px;font-weight:700;text-transform:uppercase;
-                    letter-spacing:0.8px;">{reading.code} &nbsp;·&nbsp; {reading.reference_year}</div>
-        <div style="color:#E2E8F0;font-size:11px;font-weight:600;line-height:1.3;">
-          {reading.title}</div>
-      </div>
+  <!-- header: icon + title + severity -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+    <div style="width:24px;height:24px;flex-shrink:0;background:{colour}18;
+                border-radius:6px;display:flex;align-items:center;justify-content:center;
+                color:{colour};font-size:10px;">
+      <i class="fa-solid {reading.icon}"></i>
     </div>
-    <span style="background:{sev['bg']};color:{sev['color']};font-size:9px;font-weight:700;
-                 padding:2px 8px;border-radius:20px;border:1px solid {sev['color']}55;
-                 white-space:nowrap;">{sev['label']}</span>
+    <span style="color:#CBD5E1;font-size:9.5px;font-weight:600;flex:1;min-width:0;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+      {reading.title}</span>
+    <span style="background:{sev['bg']};color:{sev['color']};font-size:7.5px;font-weight:700;
+                 padding:2px 6px;border-radius:10px;white-space:nowrap;flex-shrink:0;">
+      {sev['label']}</span>
   </div>
 
-  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:7px;">
-    <span style="color:{colour};font-size:27px;font-weight:800;line-height:1;
+  <!-- value row -->
+  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:auto;">
+    <span style="color:{colour};font-size:22px;font-weight:800;line-height:1;
                  font-family:'JetBrains Mono','Courier New',monospace;">
-      {reading.actual_value:,.2f}%</span>
-    <span style="color:{yoy_colour};font-size:10.5px;font-weight:700;">
-      {arrow} {abs(reading.yoy):.2f}pp</span>
+      {reading.actual_value:,.1f}%</span>
+    <span style="color:{yoy_colour};font-size:8px;font-weight:600;">
+      {arrow} {abs(reading.yoy):.1f}pp</span>
   </div>
 
-  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-    <span style="color:#64748B;font-size:10px;">Benchmark</span>
-    <span style="color:#E2E8F0;font-size:10px;font-weight:600;">{reading.target:,.2f}%</span>
+  <!-- footer: target + gap + rank -->
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span style="color:#64748B;font-size:8px;">Target</span>
+    <span style="color:#B0BAC9;font-size:8.5px;font-weight:600;">{reading.target:,.1f}%</span>
+    <span style="color:{sev['color']};font-size:8px;font-weight:700;">({gap:+.1f}pp)</span>
     <span style="flex:1;"></span>
-    <span style="background:{sev['bg']};color:{sev['color']};font-size:9.5px;font-weight:700;
-                 padding:2px 8px;border-radius:20px;border:1px solid {sev['color']}55;
-                 white-space:nowrap;">{gap:+.1f}pp</span>
-  </div>
-
-  <div style="display:flex;align-items:center;justify-content:space-between;
-              border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">
-    <span style="color:#64748B;font-size:9.5px;">
-      {reading.achievement:.0f}% of benchmark</span>
     {rank_html}
   </div>
 </div>
@@ -312,20 +302,3 @@ def render():
 
     reporting = (f"losses reported to {last_actual}, imports to {imp_end}"
                  if last_actual else "reported history only")
-
-    st.markdown(
-        dashboard_footer(
-            scope_line=(f"Showing {span} · benchmark year {ref} · four KPIs "
-                        f"and six charts"),
-            method_line=(f"Gaps are direction-aware and measured against "
-                         f"dim_target; years after {imp_end} are trend-projected "
-                         f"and drawn dashed. {lead}"),
-            source_line=("World Bank · EIA · Pakistan Energy Yearbook "
-                         f"({reporting})"),
-            note=(f"Modelled, not measured: losses beyond {last_actual} and all "
-                  f"import figures beyond {imp_end} are estimates."
-                  if last_actual else None),
-            icon_name="insights",
-        ),
-        unsafe_allow_html=True,
-    )

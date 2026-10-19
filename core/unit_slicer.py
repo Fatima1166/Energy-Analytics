@@ -46,7 +46,7 @@ def set_unit(domain: str, unit: str) -> None:
 # ---------------------------------------------------------------------------
 # Sidebar UI
 # ---------------------------------------------------------------------------
-def render_sidebar_unit_slicer(domains: list = None) -> dict:
+def render_sidebar_unit_slicer(domains: list = None, in_expander: bool = True) -> dict:
     """
     Draw the unit selectors for the active dashboard and return the resulting
     preference dict, e.g. ``{"energy": "TOE", "gas": "BCF", ...}``.
@@ -62,28 +62,41 @@ def render_sidebar_unit_slicer(domains: list = None) -> dict:
     else:
         display_domains = list(DOMAIN_ORDER)
 
-    # ── Section title ────────────────────────────────────────────────────────
-    # Plain animated heading (styled globally by .dsh-side-title); no card.
-    st.sidebar.markdown(
-        '<div class="dsh-side-title">Unit Selection</div>',
-        unsafe_allow_html=True,
-    )
-
     current = get_units()
 
-    for dom in display_domains:
-        cfg    = DOMAINS[dom]
-        options = list(cfg["units"])
-        cur    = current.get(dom, cfg["default"])
-        index  = options.index(cur) if cur in options else 0
+    if in_expander:
+        with st.sidebar.expander("Unit Preferences", expanded=False):
+            for dom in display_domains:
+                cfg = DOMAINS[dom]
+                options = list(cfg["units"])
+                cur = current.get(dom, cfg["default"])
+                index = options.index(cur) if cur in options else 0
 
-        st.sidebar.selectbox(
-            cfg["label"],
-            options,
-            index=index,
-            key=f"unit_sel_{dom}",
-            help=cfg["note"],
+                st.selectbox(
+                    cfg["label"],
+                    options,
+                    index=index,
+                    key=f"unit_sel_{dom}",
+                    help=cfg["note"],
+                )
+    else:
+        st.sidebar.markdown(
+            '<div class="dsh-side-title">Unit Selection</div>',
+            unsafe_allow_html=True,
         )
+        for dom in display_domains:
+            cfg = DOMAINS[dom]
+            options = list(cfg["units"])
+            cur = current.get(dom, cfg["default"])
+            index = options.index(cur) if cur in options else 0
+
+            st.sidebar.selectbox(
+                cfg["label"],
+                options,
+                index=index,
+                key=f"unit_sel_{dom}",
+                help=cfg["note"],
+            )
 
     # Persist this run's selection.  Start from what is already stored and only
     # overwrite the domains drawn for this dashboard, so a preference chosen on

@@ -66,11 +66,15 @@ def _dark_theme(fig, height: int = 370, y_title: Optional[str] = None,
                   color=_TEXT),
     )
     fig.update_xaxes(gridcolor=_AXIS, zerolinecolor=_AXIS,
-                     title=dict(text=x_title, font=dict(size=11.5, color=_TEXT)) if x_title else None,
                      tickfont=dict(size=11, color=_TICK))
     fig.update_yaxes(gridcolor=_AXIS, zerolinecolor=_AXIS,
-                     title=dict(text=y_title, font=dict(size=11.5, color=_TEXT)) if y_title else None,
                      tickfont=dict(size=11, color=_TICK))
+    # Only set the title when one is supplied -- passing title=None would wipe
+    # the per-panel titles that multi-axis charts set themselves before this call.
+    if x_title:
+        fig.update_xaxes(title=dict(text=x_title, font=dict(size=11.5, color=_TEXT)))
+    if y_title:
+        fig.update_yaxes(title=dict(text=y_title, font=dict(size=11.5, color=_TEXT)))
     if y2_title:
         fig.update_layout(yaxis2=dict(
             title=dict(text=y2_title, font=dict(size=11.5, color=_TEXT)),

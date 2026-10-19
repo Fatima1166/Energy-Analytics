@@ -16,7 +16,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # 1. Domains and their sidebar options
 # ---------------------------------------------------------------------------
-DOMAIN_ORDER = ["energy", "electricity", "power", "gas", "emission", "economic"]
+DOMAIN_ORDER = ["energy", "electricity", "power", "gas", "emission", "economic", "cost"]
 
 DOMAINS: Dict[str, dict] = {
     "energy": {
@@ -67,6 +67,14 @@ DOMAINS: Dict[str, dict] = {
         "fixed": True,
         "note": "Currency / ratio / head-count -- fixed, not converted",
     },
+    "cost": {
+        "label": "Cost",
+        "base": "USD",
+        "units": ["USD bn", "USD mn", "USD"],
+        "default": "USD bn",
+        "fixed": False,
+        "note": "Power producer purchase cost (constant USD)",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -85,12 +93,15 @@ _TO_BASE: Dict[str, float] = {
     "t": 1.0, "kt": 1e3, "Mt": 1e6,
     # economic (fixed)
     "USD": 1.0, "%": 1.0, "Persons": 1.0,
+    # cost (base USD; cost_forecast engine emits full USD values)
+    "USD bn": 1e9, "USD mn": 1e6,
 }
 
 _ALIASES: Dict[str, str] = {
     "MMCF": "MMSCF", "MMSCFD": "MMSCF", "MSCF": "MMSCF",
     "TONNE": "t", "TONNES": "t", "TON": "t", "TCO2": "t", "TCO₂": "t",
     "MILLION USD": "USD", "MUSD": "USD", "M USD": "USD",
+    "BILLION USD": "USD bn", "BN USD": "USD bn", "USD BILLION": "USD bn",
     "PEOPLE": "Persons", "PERSON": "Persons",
     "TWH": "TWh", "GWH": "GWh", "MWH": "MWh",
     "KWH": "MWh", "KILOWATT HOUR": "MWh",

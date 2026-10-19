@@ -61,7 +61,9 @@ energy_dashboard/
 │   ├── q2_renewable_scenarios/   # Q2: page, charts, config, README.md, REPORT.md
 │   ├── q3_target_bottlenecks/    # Q3: page, charts, config, README.md
 │   ├── q4_forecast_demand/       # Q4: page, charts, config, README.md
-│   └── q5_forecast_supply/       # Q5: page, charts, config, README.md
+│   ├── q5_forecast_supply/       # Q5: page, charts, config, README.md
+│   ├── q6_supply_chain_optimization/ # Q6: page, charts, config, README.md
+│   └── q7_forecast_cost/         # Q7: page, charts, config, README.md
 ├── scripts/
 │   ├── verify_demand_forecast.py # Q4 numbers, printed from live MySQL
 │   ├── verify_supply_forecast.py # Q5 numbers, printed from live MySQL
@@ -270,6 +272,23 @@ Reproduce every figure from the command line:
 ```
 
 Full details: [`dashboards/q5_forecast_supply/README.md`](dashboards/q5_forecast_supply/README.md)
+
+### Q6 — Supply Chain Optimization (1999–2024)
+
+*What is the optimal utilization of fuel and renewable energy supply chains?*
+
+| KPI / Visual | What it shows |
+|---|---|
+| SC1 Composite Score | 0–100 weighted index across grid, RE, import, waste, and gas dimensions |
+| SC2 Transmission Efficiency | Delivered generation efficiency % vs user-configured loss benchmark |
+| SC3 Import Dependency | Imported share of primary supply across selected fuel and power streams |
+| SC4 RE Utilisation Rate | Output to potential ratio across installed renewable assets |
+| SC5 Gas Self-Sufficiency | Domestic gas production vs national consumption ratio (unit-aware) |
+| Visuals 1–8 | Efficiency radar, T&D losses, import split, RE utilisation, gas balance, LNG economics, composite score trend, what-if generation mix simulator |
+| Slicers | Strategy Presets, Analysis Period, Supply Streams Filter, Target RE Share %, Loss Benchmark %, Priority Weights, Unit Selection (Energy, Electricity, Power, Gas) |
+
+Full details: [`dashboards/q6_supply_chain_optimization/README.md`](dashboards/q6_supply_chain_optimization/README.md)
+
 
 ### Units
 

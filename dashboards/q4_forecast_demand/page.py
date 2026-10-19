@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from config.database import run_query
-from core.components import dashboard_footer, section_title
+from core.components import section_title
 from core.demand_forecast import (
     DEFAULT_BASE_GDP_GROWTH,
     DEFAULT_CALIB_START,
@@ -83,36 +83,37 @@ def sidebar() -> None:
     if not scenarios:
         scenarios = ["Base"]
 
-    model_choice = st.sidebar.radio(
-        "Forecast basis", ["Driver", "Trend"], index=0, key="q4_model",
-        help=("Driver: demand responds to GDP and population through the fitted "
-              "elasticities. Trend: the fitted log-linear growth, shifted by half "
-              "the GDP surprise."),
-    )
-
-    calib_start = st.sidebar.slider(
-        "Calibration start", min_value=2005, max_value=2020,
-        value=DEFAULT_CALIB_START, step=1, key="q4_calib",
-        help="Elasticities and trends are fitted from this year to 2024.",
-    )
-
     horizon = st.sidebar.slider(
         "Forecast horizon", min_value=2026, max_value=2035, value=HORIZON,
         step=1, key="q4_horizon",
         help="Last modelled year. The residual drift fades to zero by this year.",
     )
 
-    base_gdp = st.sidebar.slider(
-        "Base GDP growth %", min_value=1.0, max_value=8.0,
-        value=_data_default_gdp_growth(), step=0.1, key="q4_gdp",
-        help="Real GDP growth assumed for the Base scenario.",
-    )
+    with st.sidebar.expander("Advanced Model Settings", expanded=False):
+        model_choice = st.radio(
+            "Forecast basis", ["Driver", "Trend"], index=0, key="q4_model",
+            help=("Driver: demand responds to GDP and population through the fitted "
+                  "elasticities. Trend: the fitted log-linear growth, shifted by half "
+                  "the GDP surprise."),
+        )
 
-    spread = st.sidebar.slider(
-        "Scenario spread ±pp", min_value=0.0, max_value=3.0,
-        value=DEFAULT_SCENARIO_SPREAD, step=0.25, key="q4_spread",
-        help="Low = Base − spread, High = Base + spread, in percentage points of GDP growth.",
-    )
+        calib_start = st.slider(
+            "Calibration start", min_value=2005, max_value=2020,
+            value=DEFAULT_CALIB_START, step=1, key="q4_calib",
+            help="Elasticities and trends are fitted from this year to 2024.",
+        )
+
+        base_gdp = st.slider(
+            "Base GDP growth %", min_value=1.0, max_value=8.0,
+            value=_data_default_gdp_growth(), step=0.1, key="q4_gdp",
+            help="Real GDP growth assumed for the Base scenario.",
+        )
+
+        spread = st.slider(
+            "Scenario spread ±pp", min_value=0.0, max_value=3.0,
+            value=DEFAULT_SCENARIO_SPREAD, step=0.25, key="q4_spread",
+            help="Low = Base − spread, High = Base + spread, in percentage points of GDP growth.",
+        )
 
     st.session_state[FILTERS_KEY] = {
         "scenarios": list(scenarios),
@@ -145,10 +146,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
                   f'border:1px solid {badge_colour}55;white-space:nowrap;">{badge}</span>'
                   if badge else "")
     return f"""
-<div style="
-    background: linear-gradient(135deg, rgba(22,27,38,0.95) 0%, rgba(14,18,26,0.98) 100%);
-    border: 1px solid {accent}44; border-radius: 14px; padding: 14px 15px 12px;
-    position: relative; overflow: hidden; height: 100%;">
+<div class="kpi-balance" style="border: 1px solid {accent}44;">
   <div style="position:absolute;top:0;left:0;right:0;height:2.5px;
               background:linear-gradient(90deg,{accent}00,{accent},{accent}00);"></div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -168,7 +166,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
                  font-family:'JetBrains Mono','Courier New',monospace;">{value}</span>
     <span style="color:#64748B;font-size:10px;font-weight:600;">{unit}</span>
   </div>
-  <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;">{detail}</div>
+  <div class="kpi-balance-details" style="margin-top:auto;">{detail}</div>
 </div>
 """
 
@@ -461,31 +459,3 @@ def render() -> None:
             row = hold_out.loc[hold_out["mape"].idxmin()]
             worst_mape = float(row["mape"])
             best_model = f"{row['label']} · {row['model']}"
-
-    st.markdown(
-        dashboard_footer(
-            scope_line=(f"Reported {VIEW_START}–{HISTORY_END}, modelled 2025–{horizon} · "
-                        f"{len(SCENARIO_ORDER)} scenarios · forecast basis {model_choice} · "
-                        f"8 elements covering 6 objectives"),
-            method_line=(
-                f"Income elasticity from ln(demand/head) ~ ln(real GDP/head) fitted "
-                f"{calib_start}–{HISTORY_END} with a 2019 basis dummy; growth = population + "
-                f"ε × GDP per head + residual, residual fading to zero by {horizon}. "
-                f"Low/Base/High = GDP {base_gdp:.1f}% ∓ {spread:.2f}pp. "
-                f"Best hold-out MAPE {worst_mape:.1f}% ({best_model})."
-                if math.isfinite(worst_mape) else
-                f"Income elasticity from ln(demand/head) ~ ln(real GDP/head) fitted "
-                f"{calib_start}–{HISTORY_END} with a 2019 basis dummy."),
-            source_line=("World Bank (GDP, population) · Pakistan Energy Yearbook / EIA via "
-                         "energy_database_new (final energy, gas balance, electricity)"),
-            note=(f"fact_final_energy_consumption changes reporting basis in {total_break} "
-                  f"— modelled with a level dummy, so the level gap between primary supply "
-                  f"and final demand in V6 is indicative. Hold-out windows are four years "
-                  f"long: read MAPE and RMSE from them, R² from the calibration fit."
-                  if total_break else
-                  "Hold-out windows are four years long: read MAPE and RMSE from them, "
-                  "R² from the calibration fit."),
-            icon_name="demand",
-        ),
-        unsafe_allow_html=True,
-    )

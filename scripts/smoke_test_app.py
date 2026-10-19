@@ -59,8 +59,11 @@ def main() -> int:
             failures += 1
             continue
 
-        radio = at.sidebar.radio[0]
-        radio.set_value(dashboard["label"]).run()
+        if len(at.sidebar.selectbox) > 0:
+            nav = at.sidebar.selectbox[0]
+        else:
+            nav = at.sidebar.radio[0]
+        nav.set_value(dashboard["label"]).run()
 
         if at.exception:
             print(f"[FAIL] {dashboard['label']}: {describe(at)}")

@@ -7,7 +7,7 @@ def kpi_card(title, value, unit, delta=None, delta_type="up",
     if delta is not None:
         delta_class = "kpi-delta-up" if delta_type == "up" else "kpi-delta-down"
         delta_icon = icon("up") if delta_type == "up" else icon("down")
-        delta_html = f'<div class="{delta_class}">{delta_icon} {delta}</div>'
+        delta_html = f'<div class="{delta_class}" style="margin-top:auto;">{delta_icon} {delta}</div>'
 
     unit_html = f' <span class="kpi-unit">{unit}</span>' if unit else ""
     return (

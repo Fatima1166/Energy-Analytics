@@ -200,33 +200,52 @@ def inject_css():
         padding-bottom: 2px !important;
     }
 
-    /* ---------- Equal Column Heights ---------- */
-    [data-testid="column"] {
+    /* ---------- Equal Column Heights across all Streamlit versions ---------- */
+    [data-testid="column"],
+    [data-testid="stColumn"],
+    .stColumn {
         display: flex !important;
         flex-direction: column !important;
+        flex: 1 1 0 !important;
+        height: 100% !important;
     }
-    [data-testid="column"] > div {
-        flex: 1 !important;
+    [data-testid="column"] > div,
+    [data-testid="stColumn"] > div,
+    .stColumn > div,
+    [data-testid="column"] [data-testid="stVerticalBlock"],
+    [data-testid="stColumn"] [data-testid="stVerticalBlock"],
+    [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"],
+    [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"],
+    [data-testid="column"] [data-testid="stElementContainer"],
+    [data-testid="stColumn"] [data-testid="stElementContainer"],
+    [data-testid="column"] .stMarkdown,
+    [data-testid="stColumn"] .stMarkdown,
+    [data-testid="column"] [data-testid="stMarkdownContainer"],
+    [data-testid="stColumn"] [data-testid="stMarkdownContainer"] {
         display: flex !important;
         flex-direction: column !important;
+        flex: 1 1 auto !important;
+        height: 100% !important;
+        width: 100% !important;
     }
 
-    /* ---------- KPI Card with Equal Height ---------- */
+    /* ---------- KPI Card with Equal Height & Bottom Balance (Q2) ---------- */
     .kpi-card {
         background: linear-gradient(145deg, rgba(28, 33, 44, 0.95) 0%, rgba(18, 22, 30, 0.98) 100%);
         border-radius: 12px;
         padding: 14px 16px;
         border: 1px solid rgba(255, 255, 255, 0.07);
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-        height: 128px !important;
-        min-height: 128px !important;
-        max-height: 128px !important;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        height: 142px !important;
+        min-height: 142px !important;
+        max-height: 142px !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
         position: relative; overflow: hidden;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        width: 100% !important;
     }
     .kpi-card::before {
         content: ''; position: absolute;
@@ -238,6 +257,34 @@ def inject_css():
         transform: translateY(-4px);
         border-color: rgba(46, 204, 113, 0.45);
         box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(46, 204, 113, 0.18);
+    }
+    /* Inline KPI row cards (Q3–Q7) share one fixed balanced height so every
+       card in a Streamlit columns row stays strictly bottom-aligned. */
+    .kpi-balance {
+        background: linear-gradient(135deg, rgba(22, 27, 38, 0.95) 0%, rgba(14, 18, 26, 0.98) 100%) !important;
+        border-radius: 14px !important;
+        padding: 14px 15px 12px !important;
+        height: 225px !important;
+        min-height: 225px !important;
+        max-height: 225px !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        position: relative !important;
+        overflow: hidden !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        width: 100% !important;
+    }
+    .kpi-balance:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5) !important;
+    }
+    .kpi-balance-details {
+        margin-top: auto !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+        padding-top: 6px !important;
     }
     .kpi-icon-wrap { margin-bottom: 8px; }
     .kpi-icon {
@@ -259,14 +306,16 @@ def inject_css():
         color: #94A3B8; font-size: 10.5px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.5px;
         margin-bottom: 4px;
+        min-height: 28px;
+        line-height: 1.35;
     }
     .kpi-value {
         color: #F8FAFC; font-size: 23px; font-weight: 800;
         margin: 0; line-height: 1.15; letter-spacing: -0.5px;
     }
     .kpi-unit { color: #64748B; font-size: 11.5px; font-weight: 500; margin-left: 3px; }
-    .kpi-delta-up   { color: #10B981; font-size: 11px; font-weight: 600; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
-    .kpi-delta-down { color: #EF4444; font-size: 11px; font-weight: 600; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    .kpi-delta-up   { color: #10B981; font-size: 11px; font-weight: 600; margin-top: auto; display: flex; align-items: center; gap: 4px; }
+    .kpi-delta-down { color: #EF4444; font-size: 11px; font-weight: 600; margin-top: auto; display: flex; align-items: center; gap: 4px; }
 
     /* ---------- Section Card ---------- */
     .section-card {

@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from config.database import run_query
-from core.components import dashboard_footer, section_title
+from core.components import section_title
 from core.icons import icon
 from core.queries import (
     Q_ECONOMIC,
@@ -74,35 +74,36 @@ def sidebar() -> None:
     if not scenarios:
         scenarios = ["Base"]
 
-    model_choice = st.sidebar.radio(
-        "Forecast basis", ["Driver", "Trend"], index=0, key="q5_model",
-        help=("Driver: supply responds to GDP and industrial activity through fitted "
-              "elasticities. Trend: log-linear historical expansion path."),
-    )
-
-    calib_start = st.sidebar.slider(
-        "Calibration start", min_value=2002, max_value=2020,
-        value=DEFAULT_CALIB_START, step=1, key="q5_calib",
-        help="Elasticities and trends are fitted from this year to 2024.",
-    )
-
     horizon = st.sidebar.slider(
         "Forecast horizon", min_value=2026, max_value=2035, value=HORIZON,
         step=1, key="q5_horizon",
         help="Target horizon year for the supply outlook.",
     )
 
-    base_gdp = st.sidebar.slider(
-        "Base GDP growth %", min_value=1.0, max_value=8.0,
-        value=_data_default_gdp_growth(), step=0.1, key="q5_gdp",
-        help="Real GDP growth assumed for the Base scenario.",
-    )
+    with st.sidebar.expander("Advanced Model Settings", expanded=False):
+        model_choice = st.radio(
+            "Forecast basis", ["Driver", "Trend"], index=0, key="q5_model",
+            help=("Driver: supply responds to GDP and industrial activity through fitted "
+                  "elasticities. Trend: log-linear historical expansion path."),
+        )
 
-    spread = st.sidebar.slider(
-        "Scenario spread ±pp", min_value=0.0, max_value=3.0,
-        value=DEFAULT_SCENARIO_SPREAD, step=0.25, key="q5_spread",
-        help="Low = Base − spread, High = Base + spread, in percentage points of GDP growth.",
-    )
+        calib_start = st.slider(
+            "Calibration start", min_value=2002, max_value=2020,
+            value=DEFAULT_CALIB_START, step=1, key="q5_calib",
+            help="Elasticities and trends are fitted from this year to 2024.",
+        )
+
+        base_gdp = st.slider(
+            "Base GDP growth %", min_value=1.0, max_value=8.0,
+            value=_data_default_gdp_growth(), step=0.1, key="q5_gdp",
+            help="Real GDP growth assumed for the Base scenario.",
+        )
+
+        spread = st.slider(
+            "Scenario spread ±pp", min_value=0.0, max_value=3.0,
+            value=DEFAULT_SCENARIO_SPREAD, step=0.25, key="q5_spread",
+            help="Low = Base − spread, High = Base + spread, in percentage points of GDP growth.",
+        )
 
     st.session_state[FILTERS_KEY] = {
         "scenarios": list(scenarios),
@@ -123,7 +124,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
     """Compact dark glassmorphism KPI card."""
     detail = "".join(
         f'<div style="display:flex;justify-content:space-between;gap:8px;'
-        f'font-size:10.5px;color:#94A3B8;padding:2px 0;">'
+        f'font-size:9px;color:#94A3B8;padding:1px 0;">'
         f'<span>{label}</span><span style="color:{colour};font-weight:700;">{text}</span>'
         f'</div>'
         for label, text, colour in rows
@@ -133,10 +134,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
                   f'border:1px solid {badge_colour}55;white-space:nowrap;">{badge}</span>'
                   if badge else "")
     return f"""
-<div style="
-    background: linear-gradient(135deg, rgba(22,27,38,0.95) 0%, rgba(14,18,26,0.98) 100%);
-    border: 1px solid {accent}44; border-radius: 14px; padding: 14px 15px 12px;
-    position: relative; overflow: hidden; height: 100%;">
+<div class="kpi-balance" style="border: 1px solid {accent}44;">
   <div style="position:absolute;top:0;left:0;right:0;height:2.5px;
               background:linear-gradient(90deg,{accent}00,{accent},{accent}00);"></div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -154,9 +152,9 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
   <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
     <span style="color:{accent};font-size:23px;font-weight:800;line-height:1;
                  font-family:'JetBrains Mono','Courier New',monospace;">{value}</span>
-    <span style="color:#64748B;font-size:10px;font-weight:600;">{unit}</span>
+    <span style="color:#64748B;font-size:9px;font-weight:600;">{unit}</span>
   </div>
-  <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;">{detail}</div>
+  <div class="kpi-balance-details" style="margin-top:auto;">{detail}</div>
 </div>
 """
 
@@ -431,26 +429,25 @@ def render() -> None:
         )
         st.plotly_chart(fig5_margin, use_container_width=True, config=_CHART_CONFIG)
 
-    # Visual 6: Energy Security & Import Dependency
-    st.markdown(section_title(f"Energy Security & Import Vulnerability ({active_sc})", "imports", "Objective 5"),
-                unsafe_allow_html=True)
-    st.caption(f"Indigenous domestic production vs imported fuel exposure ({unit_energy}) and import share % trajectory under the transition.")
-    fig6 = visual6_indigenous_vs_imports(
-        security_df=data["security"],
-        active_scenario=active_sc,
-        unit_energy=unit_energy,
-        factor_energy=factor_energy,
-    )
-    st.plotly_chart(fig6, use_container_width=True, config=_CHART_CONFIG)
-
-    # Visual 7: Forecast Reliability & Backtesting
-    st.markdown(section_title("Supply Forecast Reliability & Model Backtesting", "insights", "Objective 6"),
-                unsafe_allow_html=True)
-    st.caption("Hold-out validation (calibrated on data ≤ 2020, tested on 2021–2024 reported data) comparing the Macro-Driver model against the Trend model.")
-
-    row4_c1, row4_c2 = st.columns([1.1, 0.9])
+    # Visuals 6 & 7: side by side in one row, backtest table below
+    row4_c1, row4_c2 = st.columns(2)
 
     with row4_c1:
+        st.markdown(section_title(f"Energy Security & Import Vulnerability ({active_sc})", "imports", "Objective 5"),
+                    unsafe_allow_html=True)
+        st.caption(f"Indigenous domestic production vs imported fuel exposure ({unit_energy}) and import share % trajectory under the transition.")
+        fig6 = visual6_indigenous_vs_imports(
+            security_df=data["security"],
+            active_scenario=active_sc,
+            unit_energy=unit_energy,
+            factor_energy=factor_energy,
+        )
+        st.plotly_chart(fig6, use_container_width=True, config=_CHART_CONFIG)
+
+    with row4_c2:
+        st.markdown(section_title("Supply Forecast Reliability & Model Backtesting", "insights", "Objective 6"),
+                    unsafe_allow_html=True)
+        st.caption("Hold-out validation (calibrated on data ≤ 2020, tested on 2021–2024 reported data) comparing the Macro-Driver model against the Trend model.")
         fig7 = visual7_reliability_backtest(
             backtest=data["backtest"],
             unit_elec=unit_elec,
@@ -458,44 +455,17 @@ def render() -> None:
         )
         st.plotly_chart(fig7, use_container_width=True, config=_CHART_CONFIG)
 
-    with row4_c2:
-        st.markdown("<div style='font-size:12px;font-weight:700;color:#CBD5E1;margin-bottom:8px;'>Model Performance Comparison (2021–2024 Hold-Out)</div>", unsafe_allow_html=True)
-        bt_table = data["backtest"]["table"].copy()
-        if not bt_table.empty:
-            bt_table["Hold-out MAPE %"] = bt_table["mape_pct"].map(lambda x: f"{x:.2f}%")
-            bt_table["Bias %"] = bt_table["bias_pct"].map(lambda x: f"{x:+.1f}%")
-            bt_table["In-sample R²"] = bt_table["calib_r2"].map(lambda x: f"{x:.3f}")
-            bt_table["Winner"] = bt_table["is_winner"].map(lambda x: "◀ Lower Error" if x else "")
+    # Model performance table: full width, below the two charts
+    st.markdown("<div style='font-size:12px;font-weight:700;color:#CBD5E1;margin:8px 0 8px;'>Model Performance Comparison (2021–2024 Hold-Out)</div>", unsafe_allow_html=True)
+    bt_table = data["backtest"]["table"].copy()
+    if not bt_table.empty:
+        bt_table["Hold-out MAPE %"] = bt_table["mape_pct"].map(lambda x: f"{x:.2f}%")
+        bt_table["Bias %"] = bt_table["bias_pct"].map(lambda x: f"{x:+.1f}%")
+        bt_table["In-sample R²"] = bt_table["calib_r2"].map(lambda x: f"{x:.3f}")
+        bt_table["Winner"] = bt_table["is_winner"].map(lambda x: "◀ Lower Error" if x else "")
 
-            disp_df = bt_table[["series_name", "model", "Hold-out MAPE %", "Bias %", "In-sample R²", "Winner"]]
-            disp_df.columns = ["Series", "Model", "MAPE %", "Bias %", "R²", "Result"]
-            st.dataframe(disp_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("Insufficient data for hold-out comparison.")
-
-    # Footer
-    scope = (
-        f"Forecasted Energy Supply: showing <b>{active_sc}</b> scenario to <b>{horizon}</b> "
-        f"(calibrated from {calib_start} to 2024; Base GDP growth: {base_gdp_growth:.1f}% p.a. ± {spread:.1f}pp; "
-        f"Clean target: {clean_target_pct:.0f}%)."
-    )
-    method = (
-        f"{model_choice} model (elasticity chained on real GDP); technology dispatch aligned with IGCEP 2022-2031 "
-        f"and ARE Policy targets; 2021-2024 hold-out validated."
-    )
-    source = "Pakistan Energy Yearbook, NTDC / CPPA-G, NEPRA State of Industry Report, World Bank, HDIP."
-    caveat = (
-        "Note: Hydel dispatch projections depend on planned COD milestones of Dasu, Mohmand, and Diamer-Bhasha dams; "
-        "intermittent RE dispatch requires adequate high-voltage transmission evacuation corridors."
-    )
-
-    st.markdown(
-        dashboard_footer(
-            scope_line=scope,
-            method_line=method,
-            source_line=source,
-            note=caveat,
-            icon_name="supply",
-        ),
-        unsafe_allow_html=True,
-    )
+        disp_df = bt_table[["series_name", "model", "Hold-out MAPE %", "Bias %", "In-sample R²", "Winner"]]
+        disp_df.columns = ["Series", "Model", "MAPE %", "Bias %", "R²", "Result"]
+        st.dataframe(disp_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Insufficient data for hold-out comparison.")

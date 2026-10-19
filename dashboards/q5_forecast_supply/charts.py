@@ -41,7 +41,7 @@ def _dark_theme(fig, height: int = 380, y_title: Optional[str] = None,
                 y2_title: Optional[str] = None, legend_h: bool = True,
                 x_title: Optional[str] = "Year"):
     legend_cfg = (
-        dict(orientation="h", y=-0.26, x=0.5, xanchor="center",
+        dict(orientation="h", y=-0.40, x=0.5, xanchor="center",
              font=dict(size=10.5, color=_TEXT))
         if legend_h
         else dict(orientation="v", x=1.02, y=0.5, font=dict(size=10.5, color=_TEXT))
@@ -50,7 +50,7 @@ def _dark_theme(fig, height: int = 380, y_title: Optional[str] = None,
         template="plotly_dark",
         paper_bgcolor="#1A1D24",
         plot_bgcolor="#14171E",
-        margin=dict(l=62, r=46, t=45, b=64),
+        margin=dict(l=62, r=52, t=48, b=108),
         height=height,
         legend=legend_cfg,
         hovermode="x unified",
@@ -60,11 +60,15 @@ def _dark_theme(fig, height: int = 380, y_title: Optional[str] = None,
                   color=_TEXT),
     )
     fig.update_xaxes(gridcolor=_AXIS, zerolinecolor=_AXIS,
-                     title=dict(text=x_title, font=dict(size=11.5, color=_TEXT)) if x_title else None,
                      tickfont=dict(size=11, color=_TICK))
     fig.update_yaxes(gridcolor=_AXIS, zerolinecolor=_AXIS,
-                     title=dict(text=y_title, font=dict(size=11.5, color=_TEXT)) if y_title else None,
                      tickfont=dict(size=11, color=_TICK))
+    # Only assign title when a non-None string is given, so that multi-panel
+    # charts which set their own per-row/col titles are not overwritten.
+    if x_title:
+        fig.update_xaxes(title=dict(text=x_title, font=dict(size=11.5, color=_TEXT)))
+    if y_title:
+        fig.update_yaxes(title=dict(text=y_title, font=dict(size=11.5, color=_TEXT)))
     if y2_title:
         fig.update_layout(yaxis2=dict(
             title=dict(text=y2_title, font=dict(size=11.5, color=_TEXT)),
@@ -329,17 +333,18 @@ def visual3_technology_mix(
         secondary_y=True,
     )
 
-    # Policy Target horizontal benchmarks
+    # Policy Target horizontal benchmarks (labels on the left to avoid the
+    # right-axis ticks and the last x-axis year colliding with the text)
     fig.add_hline(
         y=clean_target, line=dict(color="#10B981", width=1.8, dash="dot"),
         annotation_text=f"Clean Target ({clean_target:.0f}%)",
-        annotation_position="top right", annotation_font=dict(size=10, color="#10B981"),
+        annotation_position="top left", annotation_font=dict(size=10, color="#10B981"),
         secondary_y=True,
     )
     fig.add_hline(
         y=30.0, line=dict(color="#F59E0B", width=1.5, dash="dot"),
         annotation_text="ARE Target (30%)",
-        annotation_position="bottom right", annotation_font=dict(size=10, color="#F59E0B"),
+        annotation_position="bottom left", annotation_font=dict(size=10, color="#F59E0B"),
         secondary_y=True,
     )
 

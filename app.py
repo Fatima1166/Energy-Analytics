@@ -46,26 +46,47 @@ st.sidebar.markdown(
 )
 
 labels = [d["label"] for d in DASHBOARDS]
-selected_label = st.sidebar.radio("nav", labels, label_visibility="collapsed")
+
+# Check query parameters (e.g. from home card arrow clicks ?nav=q1)
+if "nav" in st.query_params:
+    target_q = st.query_params.get("nav")
+    matched_dash = next((d for d in DASHBOARDS if d["key"].lower() == str(target_q).lower() or d["label"] == target_q), None)
+    if matched_dash:
+        st.session_state["nav_pending"] = matched_dash["label"]
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+# The Energy Overview home tiles ask for a dashboard by st.session_state
+# ["nav_pending"]; we must apply it BEFORE the selectbox is instantiated
+# (widget-state writes are rejected after the widget exists in a run).
+_pending_nav = st.session_state.pop("nav_pending", None)
+if _pending_nav and _pending_nav in labels:
+    st.session_state["nav_selector"] = _pending_nav
+selected_label = st.sidebar.selectbox("nav", labels, label_visibility="collapsed",
+                                      key="nav_selector")
 selected = next(d for d in DASHBOARDS if d["label"] == selected_label)
 
 st.sidebar.divider()
 
 # ---------------- Header (dynamic per dashboard) ----------------
-dash_title    = selected.get("title",    APP_TITLE)
-dash_subtitle = selected.get("subtitle", APP_SUBTITLE)
-dash_icon     = selected.get("icon",     "overview")
+# The landing Home dashboard renders its own full-width executive command header.
+if selected.get("key") != "home":
+    dash_title    = selected.get("title",    APP_TITLE)
+    dash_subtitle = selected.get("subtitle", APP_SUBTITLE)
+    dash_icon     = selected.get("icon",     "overview")
 
-st.markdown(
-    f'<div class="top-header">'
-    f'<div class="header-icon">{icon(dash_icon)}</div>'
-    f'<div>'
-    f'<h1>{dash_title}</h1>'
-    f'<p>{dash_subtitle}</p>'
-    f'</div>'
-    f'</div>',
-    unsafe_allow_html=True
-)
+    st.markdown(
+        f'<div class="top-header">'
+        f'<div class="header-icon">{icon(dash_icon)}</div>'
+        f'<div>'
+        f'<h1>{dash_title}</h1>'
+        f'<p>{dash_subtitle}</p>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
 dashboard_module = load_dashboard_module(selected["module"])
 
@@ -76,7 +97,9 @@ if callable(sidebar_fn):
 
 # ---------------- 2. Global unit selection ----------------
 # Only the unit families this dashboard actually renders are offered.
-render_sidebar_unit_slicer(selected.get("units"))
+# On the landing page, the Home sidebar handles unit controls directly.
+if selected.get("key") != "home":
+    render_sidebar_unit_slicer(selected.get("units"))
 
 # ---------------- 3. Dashboard body ----------------
 dashboard_module.render()
