@@ -5,12 +5,15 @@ All four visuals support the full 2002 -> 2035 horizon and mark the boundary
 between reported history and modelled values, so a projected point can never be
 mistaken for a measured one.
 
-V1  Loss waterfall            -- where primary supply leaks, for one year
-V2  Losses vs benchmark path  -- is the gap closing, and when does it close?
-V3  Import dependence         -- import share build-up vs the benchmark
-V4  Gas balance               -- production vs consumption, self-sufficiency
-V5  Bottleneck gap paths      -- all four KPI gaps on one comparable axis
-V6  Achievement bars          -- how much of each benchmark is delivered
+V1  Loss waterfall       -- where primary supply leaks, for one year
+V2  Import dependence    -- import share build-up with imported volume
+V3  Gas balance          -- production vs consumption, self-sufficiency
+V4  Bottleneck gaps      -- all four KPI gaps on one comparable axis
+V5  Better or worse      -- slope: first reported year to last reported year
+
+Each target's own benchmark, gap and rank already sit on its KPI card, and V4
+carries the "are we getting closer" answer for all four -- so no chart here
+redraws one metric against its target line.
 """
 
 from __future__ import annotations
@@ -19,16 +22,16 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from core.bottleneck_metrics import ACTUAL, ESTIMATED, PROJECTED, PROVENANCE_COLORS
+from core.bottleneck_metrics import (ACTUAL, ESTIMATED, PROJECTED, MISSING,
+                                      PROVENANCE_COLORS)
 
 # ═══════════════════════════ shared dark theme ═══════════════════════════════
 
 _AXIS = "#2A2F3A"
 _TICK = "#8B95A7"
-_TITLE = "#94A3B8"
 
 
-def _dark_theme(fig, height=390, y_title=None, x_title="Year", y2_title=None, legend_h=True):
+def _dark_theme(fig, height=390, y_title=None, x_title="Year", legend_h=True):
     """Consistent premium dark theme used by every Q3 figure."""
     legend_cfg = (
         dict(orientation="h", y=-0.24, x=0.5, xanchor="center",
@@ -55,11 +58,6 @@ def _dark_theme(fig, height=390, y_title=None, x_title="Year", y2_title=None, le
         font=dict(family="Inter, -apple-system, BlinkMacSystemFont, sans-serif",
                   color="#C8CDD6"),
     )
-    if y2_title:
-        fig.update_layout(yaxis2=dict(
-            title=dict(text=y2_title, font=dict(size=11, color=_TICK)),
-            tickfont=dict(size=11, color=_TICK),
-            overlaying="y", side="right", gridcolor=_AXIS, showgrid=False))
     return fig
 
 
@@ -89,24 +87,39 @@ def _segment_traces(fig, x, y, types, base_name, color, width=2.5,
     """
     Draw one series split into Actual / Estimated / Projected segments so the
     line styling itself communicates provenance.
+
+    Power BI style blank -- rows whose ``types`` is ``MISSING``/``None`` **or**
+    whose ``y`` is NaN are left as line breaks (``connectgaps=False``) so the
+    gap year is visibly empty on the chart, never silently bridged.
     """
-    df = pd.DataFrame({"x": list(x), "y": list(y),
-                       "t": [t if isinstance(t, str) else ACTUAL for t in types]})
+    y_num = pd.to_numeric(pd.Series(list(y)), errors="coerce")
+    df = pd.DataFrame({
+        "x": list(x),
+        "y": list(y_num),
+        "t": [t if isinstance(t, str) and t != MISSING else None for t in types],
+    })
     if df.empty:
         return fig
 
     # If the whole series is modelled, it must still read as modelled.
-    if (df["t"] == ACTUAL).sum() == 0:
-        df["t"] = PROJECTED
+    if (df["t"] == ACTUAL).sum() == 0 and (df["t"] == ESTIMATED).sum() == 0:
+        if (df["t"] == PROJECTED).any():
+            df["t"] = df["t"].apply(lambda t: t if t is not None else PROJECTED)
 
-    boundaries = [i for i in range(1, len(df)) if df["t"].iloc[i] != df["t"].iloc[i - 1]]
+    # Break at tag changes AND at missing-y so a gap year visibly stops the
+    # line rather than being bridged.
+    def _key(i):
+        return (df["t"].iloc[i], not pd.isna(df["y"].iloc[i]))
+    boundaries = [i for i in range(1, len(df)) if _key(i) != _key(i - 1)]
     starts = [0] + boundaries
     ends = boundaries + [len(df)]
 
     for seg_i, (a, b) in enumerate(zip(starts, ends)):
-        lo = max(0, a - 1) if seg_i > 0 else a      # overlap one point, no gap
-        seg = df.iloc[lo:b]
-        tag = df["t"].iloc[b - 1]
+        seg = df.iloc[a:b]
+        # Skip runs made entirely of gap years -- nothing to draw.
+        if seg["y"].isna().all():
+            continue
+        tag = df["t"].iloc[b - 1] or PROJECTED
         seg_color = PROVENANCE_COLORS.get(tag, color)
         line_style = dict(color=seg_color, width=width)
         if tag == ESTIMATED:
@@ -114,11 +127,19 @@ def _segment_traces(fig, x, y, types, base_name, color, width=2.5,
         elif tag == PROJECTED:
             line_style["dash"] = "dash"
         marker = (dict(size=5, color=seg_color, line=dict(width=1, color="#1A1D24"))
-                  if mode == "lines+markers" else None)
+                  if "markers" in mode else None)
+
+        # Overlap the previous segment by one point only when that point is
+        # present (so tags connect visually across a tag change but NOT
+        # across a Power BI gap).
+        prev_present = (seg_i > 0 and a > 0 and not pd.isna(df["y"].iloc[a - 1]))
+        if prev_present:
+            seg = pd.concat([df.iloc[a - 1:a], seg], ignore_index=True)
 
         trace = go.Scatter(
             x=seg["x"], y=seg["y"], mode=mode, name=base_name,
-            line=line_style, marker=marker, showlegend=False, legendgroup=base_name,
+            line=line_style, marker=marker, showlegend=False,
+            legendgroup=base_name, connectgaps=False,
             hovertemplate=f"{base_name}<br>%{{x}}: <b>%{{y:,.2f}}</b><extra></extra>",
         )
         if row is not None:
@@ -168,13 +189,20 @@ def visual1_loss_waterfall(series: pd.DataFrame, year: int, unit: str = "TOE"):
 
     r = row.iloc[0]
     yr = int(r["calendar_year"])
-    supply = float(r.get("supply_toe") or 0.0)
-    losses = float(r.get("losses_toe") or 0.0)
-    td = float(r.get("td_losses_toe") or 0.0)
-    if td != td:                       # NaN
-        td = 0.0
-    if supply <= 0:
+    supply_v = r.get("supply_toe")
+    losses_v = r.get("losses_toe")
+    td_v = r.get("td_losses_toe")
+
+    # Power BI style blank -- if the selected year has no losses or supply
+    # row, show the empty figure instead of a misleading waterfall of zeros.
+    if supply_v is None or pd.isna(supply_v) or float(supply_v) <= 0:
         return _empty_fig(f"No supply data for {yr}")
+    if losses_v is None or pd.isna(losses_v):
+        return _empty_fig(f"No losses data for {yr}")
+
+    supply = float(supply_v)
+    losses = float(losses_v)
+    td = 0.0 if (td_v is None or pd.isna(td_v)) else float(td_v)
 
     # Transformation share of total losses from the last reported breakdown.
     trans_ratio = 0.88
@@ -227,111 +255,41 @@ def visual1_loss_waterfall(series: pd.DataFrame, year: int, unit: str = "TOE"):
     ))
 
     fig = _dark_theme(fig, height=400, y_title=f"Energy Flow ({unit})", x_title="Flow Stage")
-    fig.update_layout(
-        title=dict(text=f"Energy Flow Waterfall — {yr}",
-                   font=dict(size=12, color=_TITLE), x=0.01),
-        showlegend=False, bargap=0.34,
-    )
+    fig.update_layout(showlegend=False, bargap=0.34)
     fig.update_xaxes(title=dict(text="Flow Stage", font=dict(size=11, color=_TICK)), tickfont=dict(size=10))
     return fig
 
 
-# ═══════════ V2: Losses vs benchmark path (actual -> 2035) ═════════════════
+# ═════════════ V2: Import dependence ════════════════════════════════════════
 
-def visual2_losses_path(series: pd.DataFrame, year_range: tuple,
-                        target: float, direction: str = "lower"):
+def visual2_import_dependence(series: pd.DataFrame, year_range: tuple,
+                              unit_energy: str = "TOE"):
     """
-    V2 -- reported and projected energy-loss intensity against the benchmark,
-    with the gap shaded and a star on the first year the target is met.
-    """
-    if series is None or series.empty:
-        return _empty_fig("No loss data")
-
-    df = series[["calendar_year", "losses_pct", "losses_pct__type"]].dropna(
-        subset=["losses_pct"]).copy()
-    df = df[(df["calendar_year"] >= year_range[0]) & (df["calendar_year"] <= year_range[1])]
-    if df.empty:
-        return _empty_fig("No loss data in the selected year range")
-
-    x = df["calendar_year"].astype(int)
-    y = pd.to_numeric(df["losses_pct"], errors="coerce")
-    types = df["losses_pct__type"].fillna(ACTUAL)
-    actual_x = x[types == ACTUAL]
-    boundary = int(actual_x.max()) if not actual_x.empty else None
-
-    fig = go.Figure()
-
-    # Shaded gap between the actual path and the benchmark.
-    fig.add_trace(go.Scatter(
-        x=list(x) + list(x[::-1]),
-        y=list(y) + [target] * len(x),
-        fill="toself", fillcolor="rgba(239,68,68,0.10)",
-        line=dict(color="rgba(0,0,0,0)"), hoverinfo="skip",
-        showlegend=False, name="Gap to benchmark",
-    ))
-
-    _segment_traces(fig, x, y, types, "Energy Losses %", "#EF4444",
-                    mode="lines+markers", width=2.6)
-    _legend_proxy(fig, "Energy Losses %", "#EF4444")
-
-    fig.add_trace(go.Scatter(
-        x=[int(x.min()), int(x.max())], y=[target, target],
-        name=f"Benchmark {target:.1f}%", mode="lines",
-        line=dict(color="#10B981", width=2, dash="dash"), hoverinfo="skip",
-    ))
-
-    met = (df[pd.to_numeric(df["losses_pct"], errors="coerce") <= target]
-           if str(direction).lower() == "lower"
-           else df[pd.to_numeric(df["losses_pct"], errors="coerce") >= target])
-    if not met.empty:
-        mx, my = int(met["calendar_year"].iloc[0]), float(met["losses_pct"].iloc[0])
-        fig.add_trace(go.Scatter(
-            x=[mx], y=[my], mode="markers+text", name=f"Target met ({mx})",
-            marker=dict(size=14, color="#10B981", symbol="star",
-                        line=dict(color="#0B3B2E", width=1)),
-            text=[f"met {mx}"], textposition="bottom center",
-            textfont=dict(size=9.5, color="#10B981"), hoverinfo="skip",
-        ))
-
-    if boundary is not None:
-        _split_marker(fig, boundary)
-
-    fig = _dark_theme(fig, height=400, y_title="Losses % of Primary Supply", x_title="Year")
-    fig.update_layout(yaxis=dict(
-        ticksuffix="%", gridcolor=_AXIS, zerolinecolor=_AXIS,
-        tickfont=dict(size=11, color=_TICK),
-        title=dict(text="Losses % of Primary Supply", font=dict(size=11, color=_TICK))))
-    return fig
-
-
-# ═════════════ V3: Import dependence vs benchmark ═══════════════════════════
-
-def visual3_import_dependence(series: pd.DataFrame, year_range: tuple,
-                              target: float, unit_energy: str = "TOE",
-                              last_reported_year: int = 2018,
-                              benchmark_note: str = "best recorded year"):
-    """
-    V3 -- import dependence over time, with imported volume as context bars.
-    Reported years are solid, the bridge years with no source rows are dotted
-    (Estimated), and the post-2024 horizon is dashed (Projected).
+    V2 -- import dependence over time, with imported volume as context bars.
+    Reported years are solid and the post-HISTORY_END horizon is dashed
+    (Projected).  Years whose source table has no import row are rendered
+    as blank: no bar, line break (Power BI style).  The benchmark comparison
+    lives on the KPI card and in V4, so this chart only shows the build-up.
     """
     if series is None or series.empty:
         return _empty_fig("No primary supply data")
 
     df = series[["calendar_year", "import_pct", "import_pct__type",
-                 "import_toe", "supply_toe"]].dropna(subset=["import_pct"]).copy()
+                 "import_toe", "supply_toe"]].copy()
     df = df[(df["calendar_year"] >= year_range[0]) & (df["calendar_year"] <= year_range[1])]
-    if df.empty:
+    if df.empty or df["import_pct"].notna().sum() == 0:
         return _empty_fig("No import data in the selected year range")
 
     x = df["calendar_year"].astype(int)
     y = pd.to_numeric(df["import_pct"], errors="coerce")
-    types = df["import_pct__type"].fillna(ACTUAL)
-    actual_x = x[types == ACTUAL]
+    types = df["import_pct__type"]
+    actual_x = x[(types == ACTUAL) & y.notna()]
     boundary = int(actual_x.max()) if not actual_x.empty else None
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
+    # Missing import_toe is left as NaN -- Plotly renders no bar for that
+    # year, which is the Power BI blank behaviour the user wants.
     fig.add_trace(go.Bar(
         x=x, y=pd.to_numeric(df["import_toe"], errors="coerce"),
         name=f"Imported energy ({unit_energy})",
@@ -360,31 +318,35 @@ def visual3_import_dependence(series: pd.DataFrame, year_range: tuple,
     return fig
 
 
-# ══════════════════════ V4: Gas balance ═════════════════════════════════════
+# ══════════════════════ V3: Gas balance ═════════════════════════════════════
 
-def visual4_gas_balance(series: pd.DataFrame, year_range: tuple,
+def visual3_gas_balance(series: pd.DataFrame, year_range: tuple,
                         target: float, unit_gas: str = "BCF"):
     """
-    V4 -- domestic production vs consumption with the self-sufficiency ratio on
+    V3 -- domestic production vs consumption with the self-sufficiency ratio on
     the secondary axis, extended to the horizon so gas depletion is visible.
+    Years with no source row are shown blank (no bar, line break) rather than
+    bridged -- Power BI style missing-year handling.
     """
     if series is None or series.empty:
         return _empty_fig("No natural gas data")
 
     cols = ["calendar_year", "gas_production_bcf", "gas_consumption_bcf",
             "gas_self_suff_pct", "gas_self_suff_pct__type"]
-    df = series[cols].dropna(subset=["gas_production_bcf", "gas_consumption_bcf"]).copy()
+    df = series[cols].copy()
     df = df[(df["calendar_year"] >= year_range[0]) & (df["calendar_year"] <= year_range[1])]
-    if df.empty:
+    if df.empty or df["gas_production_bcf"].notna().sum() == 0:
         return _empty_fig("No gas data in the selected year range")
 
     x = df["calendar_year"].astype(int)
     prod = pd.to_numeric(df["gas_production_bcf"], errors="coerce")
     cons = pd.to_numeric(df["gas_consumption_bcf"], errors="coerce")
     ratio = pd.to_numeric(df["gas_self_suff_pct"], errors="coerce")
-    types = df["gas_self_suff_pct__type"].fillna(ACTUAL)
-    actual_x = x[types == ACTUAL]
+    types = df["gas_self_suff_pct__type"]
+    actual_x = x[(types == ACTUAL) & ratio.notna()]
     boundary = int(actual_x.max()) if not actual_x.empty else None
+    # Deficit only where BOTH prod and cons are reported -- NaN propagates so
+    # gap years produce no shaded area.
     deficit = (prod - cons).clip(upper=0)
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -406,6 +368,7 @@ def visual4_gas_balance(series: pd.DataFrame, year_range: tuple,
         x=x, y=deficit, name="Supply deficit",
         mode="lines", line=dict(color="#EF4444", width=1.6, dash="dot"),
         fill="tozeroy", fillcolor="rgba(239,68,68,0.22)",
+        connectgaps=False,
         hovertemplate="Deficit: <b>%{y:,.1f} " + unit_gas + "</b><extra></extra>",
     ), secondary_y=False)
 
@@ -440,12 +403,12 @@ def visual4_gas_balance(series: pd.DataFrame, year_range: tuple,
     return fig
 
 
-# ═══════════════ V5: Bottleneck gap paths (all metrics) ═════════════════════
+# ═══════════════ V4: Bottleneck gap paths (all metrics) ═════════════════════
 
-def visual5_gap_paths(timeline: pd.DataFrame, year_range: tuple,
+def visual4_gap_paths(timeline: pd.DataFrame, year_range: tuple,
                       labels: dict, colors: dict):
     """
-    V5 -- every KPI gap on one axis.  Positive = benchmark met, negative =
+    V4 -- every KPI gap on one axis.  Positive = benchmark met, negative =
     missed, which makes the direction of each bottleneck directly comparable.
     """
     if timeline is None or timeline.empty:
@@ -463,71 +426,101 @@ def visual5_gap_paths(timeline: pd.DataFrame, year_range: tuple,
         if metric not in df.columns:
             continue
         fig.add_trace(go.Scatter(
-            x=df["calendar_year"], y=df[metric].round(2),
+            x=df["calendar_year"], y=pd.to_numeric(df[metric], errors="coerce").round(2),
             name=label, mode="lines",
             line=dict(color=colors.get(metric, "#8B95A7"), width=2.3),
-            hovertemplate=label + "<br>%{x}: <b>%{y:+.2f} pp</b><extra></extra>",
+            connectgaps=False,
+            hovertemplate=label + "<br>%{x}: <b>%{y:+.2f} points</b><extra></extra>",
         ))
 
-    fig = _dark_theme(fig, height=340, y_title="Gap to benchmark (pp)", x_title="Year")
+    gap_axis = "Gap to benchmark (percentage points)"
+    fig = _dark_theme(fig, height=340, y_title=gap_axis, x_title="Year")
     fig.update_layout(yaxis=dict(
         ticksuffix="pp", gridcolor=_AXIS, zerolinecolor=_AXIS,
         tickfont=dict(size=11, color=_TICK),
-        title=dict(text="Gap to benchmark (percentage points)",
+        title=dict(text=gap_axis,
                    font=dict(size=11, color=_TICK))))
     return fig
 
 
-# ══════════════ V6: Achievement bars at the reference year ══════════════════
+# ═══════════════════════════════ V5 -- better or worse (slope) ═════════════
 
-def visual6_achievement(readings: dict, order: list, year: int = None):
-    """
-    V6 -- how much of each benchmark is delivered at the reference year.
-    100% is the benchmark; bars are coloured by severity.
+_METRIC_WORDS = {
+    "losses_pct": ("Energy Losses %", "#EF4444", "lower"),
+    "import_pct": ("Import Dependence %", "#F59E0B", "lower"),
+    "re_share_pct": ("Renewable Share %", "#10B981", "higher"),
+    "gas_self_suff_pct": ("Gas Self-Sufficiency %", "#00A6FB", "higher"),
+}
 
-    Sized and margined to sit level with V5 when the two share a row.
-    """
-    if not readings:
-        return _empty_fig("No KPI data")
 
-    keys = [k for k in order if k in readings]
-    if not keys:
-        return _empty_fig("No KPI data")
+def visual5_bottleneck_slope(series: pd.DataFrame, year_range: tuple) -> go.Figure:
+    """One line per bottleneck metric: its value in the first reported year of
+    the range and its value in the last reported year.  A line that moves
+    towards the improvement side (losses/imports down, renewables/gas up) is
+    painted green; a line that moves the wrong way is red.  This is the "is
+    the bottleneck easing or tightening?" answer that V1..V4 do not give."""
+    fig = go.Figure()
+    if series is None or series.empty:
+        return _dark_theme(fig, height=380, y_title="Metric (%)",
+                           x_title="First reported → Last reported")
 
-    labels = [readings[k].short for k in keys]
-    values = [readings[k].achievement for k in keys]
-    colors = [readings[k].sev["color"] for k in keys]
-    custom = [(readings[k].target, readings[k].actual_value, readings[k].provenance)
-              for k in keys]
+    lo_yr, hi_yr = int(year_range[0]), int(year_range[1])
+    actual = series[(series["calendar_year"] >= lo_yr) &
+                    (series["calendar_year"] <= hi_yr)]
 
-    fig = go.Figure(go.Bar(
-        x=values, y=labels, orientation="h",
-        marker=dict(color=colors, line=dict(color="#1A1D24", width=0.6)),
-        text=[f"{v:.0f}%" for v in values], textposition="outside",
-        textfont=dict(size=11, color="#C8CDD6"),
-        customdata=custom,
-        hovertemplate=("<b>%{y}</b><br>Achievement: %{x:.1f}% of benchmark"
-                       "<br>Benchmark: %{customdata[0]:.2f}%"
-                       "<br>Value: %{customdata[1]:.2f}% (%{customdata[2]})"
-                       "<extra></extra>"),
-    ))
-    fig.add_vline(x=100, line=dict(color="#10B981", width=2, dash="dash"))
-    fig.add_annotation(x=100, y=1.0, yref="paper", yanchor="bottom",
-                       text="benchmark", showarrow=False,
-                       font=dict(size=10, color="#10B981"))
+    any_drawn = False
+    for metric, (label, colour, direction) in _METRIC_WORDS.items():
+        type_col = f"{metric}__type"
+        if metric not in actual.columns:
+            continue
+        if type_col in actual.columns:
+            pool = actual[actual[type_col] == ACTUAL]
+        else:
+            pool = actual[actual[metric].notna()]
+        if pool.empty:
+            continue
+        pool = pool.sort_values("calendar_year")
+        first_row = pool.iloc[0]
+        last_row = pool.iloc[-1]
+        x0 = str(int(first_row["calendar_year"]))
+        x1 = str(int(last_row["calendar_year"]))
+        v0 = float(first_row[metric])
+        v1 = float(last_row[metric])
+        moved_good = (v1 < v0) if direction == "lower" else (v1 > v0)
+        line_colour = "#10B981" if moved_good else "#EF4444"
+        fig.add_trace(go.Scatter(
+            x=[x0, x1], y=[v0, v1], mode="lines+markers+text",
+            name=label,
+            line=dict(color=line_colour, width=2.4),
+            marker=dict(size=9, color=[line_colour, line_colour]),
+            text=[f"{v0:.1f}%", f"{v1:.1f}%"],
+            textposition=["middle right", "middle left"],
+            textfont=dict(size=9.5, color=_TICK),
+            customdata=[v1 - v0],
+            hovertemplate=('<b>' + label + '</b><br>'
+                           f'{x0} \u2192 {x1}<br>'
+                           'First: <b>' + f'{v0:.2f}' + '%</b><br>'
+                           'Last: <b>' + f'{v1:.2f}' + '%</b><br>'
+                           'Change: ' + f'{(v1-v0):+.2f}' + ' pp'
+                           '<extra></extra>'),
+        ))
+        # a light grey label on the left axis so the reader can see what the
+        # line means even without hovering
+        any_drawn = True
 
-    # Same height as V5 so the two cards line up in a shared row.
-    fig = _dark_theme(fig, height=340, x_title="Benchmark Achievement (%)", y_title="KPI / Target", legend_h=False)
+    if not any_drawn:
+        fig.add_annotation(text="No reported years in this range",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color=_TICK, size=12))
+
+    _dark_theme(fig, height=380,
+                y_title="Metric value (% of the base)",
+                x_title="First reported year → Last reported year",
+                legend_h=False)
     fig.update_layout(
-        showlegend=False,
-        bargap=0.42,
-        title=dict(text=(f"Delivery at {year}" if year else ""),
-                   font=dict(size=11.5, color=_TITLE), x=0.01),
-        xaxis=dict(range=[0, max(170, max(values) * 1.28 if values else 170)],
-                   ticksuffix="%", gridcolor=_AXIS, tickfont=dict(size=11, color=_TICK),
-                   title=dict(text="Benchmark Achievement (%)", font=dict(size=11, color=_TICK))),
-        yaxis=dict(tickfont=dict(size=11.5, color="#C8CDD6"),
-                   title=dict(text="KPI / Target", font=dict(size=11, color=_TICK))),
-        margin=dict(l=126, r=76, t=40, b=52),
+        legend=dict(orientation="h", y=-0.30, x=0.5, xanchor="center",
+                    font=dict(size=9.5, color="#C8CDD6")),
+        margin=dict(l=54, r=40, t=34, b=88),
     )
     return fig
+

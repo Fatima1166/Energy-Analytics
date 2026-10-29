@@ -44,6 +44,13 @@ column — the storage layer had **already been normalised** before this change:
 | Emission | `t` (tonnes CO₂) | t, Mt, kt |
 | Economic | `USD` / `%` / `Persons` | fixed — not converted |
 
+Conversion only ever touches a value that was **reported for its own year**. A
+year inside the reported window (up to 2024) that the database did not report
+stays blank — it is not filled with 0, carried from another year, or
+interpolated — so the unit dropdown converts real readings and nothing else.
+Projections start at 2025 (`Projected` in the data layer). See *Missing years &
+the projection window* in the root [README.md](README.md).
+
 **However the Streamlit code was still reading the OLD column names**
 (`gen_solar_twh`, `total_primary_supply_mtoe`, `imports_mmcf`,
 `proved_reserves_tcm`), which no longer exist. The dashboard was therefore
@@ -124,39 +131,128 @@ Unit Selection
 ```
 Dashboards        ( o ) Forecasted Demand
 ─────────────────────────────────────────────
-Forecast Setup
-  Scenarios         [ Low / Base / High ]
-  Forecast basis    ( o ) Driver  ( ) Trend
-  Calibration start [ ────●────── ] 2012
-  Forecast horizon  [ ─────────●─ ] 2035
-  Base GDP growth % [ ────●────── ] 4.0
-  Scenario spread   [ ───●─────── ] ±1.50 pp
+Forecast
+  Scenarios to show [ Low / Base / High ]
+  Forecast up to    [ ─────────●─ ] 2035
 ─────────────────────────────────────────────
 Unit Selection
   Energy       [ TOE ▾ ]
   Electricity  [ GWh ▾ ]
 ```
 
-**Q5 — Forecasted Supply** (`units: energy, electricity, power`):
+**Q5 — Forecasted Supply** (`units: energy, electricity`):
 
 ```
 Dashboards        ( o ) Forecasted Supply
 ─────────────────────────────────────────────
-Supply Forecast Setup
-  Scenarios         [ Low / Base / High ]
-  Forecast basis    ( o ) Driver  ( ) Trend
-  Calibration start [ ────●────── ] 2012
-  Forecast horizon  [ ─────────●─ ] 2035
-  Base GDP growth % [ ────●────── ] 4.0
-  Scenario spread   [ ───●─────── ] ±1.50 pp
+Supply
+  Scenarios to show [ Low / Base / High ]
+  Forecast up to    [ ─────────●─ ] 2035
 ─────────────────────────────────────────────
 Unit Selection
   Energy       [ TOE ▾ ]
   Electricity  [ GWh ▾ ]
-  Power        [ MW  ▾ ]
 ```
 
-* **Default of every dropdown = the database BASE UNIT** of that domain  (`TOE`, `GWh`, `MW`, `BCF`, `t`) — i.e. the screen initially shows exactly what
+**Q6 — Supply Chain Optimization** (`units: electricity, power, gas`):
+
+```
+Dashboards        ( o ) Supply Chain Optimization
+─────────────────────────────────────────────
+Supply Chain
+  Which part counts most [ All four parts equally ▾ ]
+  Years to judge         [ ●──────────● ] 2002 – 2024
+─────────────────────────────────────────────
+Unit Selection
+  Electricity  [ GWh ▾ ]
+  Power        [ MW  ▾ ]
+  Gas          [ BCF ▾ ]
+```
+
+**Q7 — Forecasted Producer Cost** (`units: cost`):
+
+```
+Dashboards        ( o ) Forecasted Producer Cost
+─────────────────────────────────────────────
+Producer Cost
+  Build-out cases to show [ Little clean power / … ]
+  Forecast up to          [ ─────────●─ ] 2035
+─────────────────────────────────────────────
+Unit Selection
+  Cost  [ USD bn ▾ ]
+```
+
+**Q8 — Sustainable Strategy** (`units: cost`):
+
+```
+Dashboards        ( o ) Sustainable Strategy
+─────────────────────────────────────────────
+Sustainable Strategy
+  What counts most              [ Balanced (planner's default) ▾ ]
+  Money a year for new measures [ ────●──── ] 8.0
+  Plan up to                    [ ─────────●─ ] 2035
+─────────────────────────────────────────────
+Unit Selection
+  Cost  [ USD bn ▾ ]
+```
+
+Only three figures on Q8 follow the Cost dropdown — K3's money, the cost line in
+V2's tooltip and the cost column of the funded list. The four-pillar score and the
+points-per-$bn ranking are unitless yardsticks and stay as they are; the ranking's
+yardstick is fixed at $bn on purpose, because one measure costs 0.2 to 3.0 bn and
+any smaller unit turns the bars into decimals.
+
+**Q9 — Operational Bottlenecks** (`units: electricity, power, gas`):
+
+```
+Dashboards        ( o ) Operational Bottlenecks
+─────────────────────────────────────────────
+Operational Bottlenecks
+  Year to judge [ ●──────────● ] 2024
+─────────────────────────────────────────────
+Unit Selection
+  Electricity  [ GWh ▾ ]
+  Power        [ MW  ▾ ]
+  Gas          [ BCF ▾ ]
+```
+
+Only the physical amounts move with the dropdowns — the energy in V3, the gas in
+V4, and the MW / GWh / BCF rows inside the three cards.  The severity scores and
+every percentage (capacity factors, home gas met, fuel bought abroad) are ratios
+of two figures in the same unit, so they stay put whatever the reader picks.
+
+**Q10 — Optimal Resource Allocation** (`units: electricity, cost, emission`):
+
+```
+Dashboards        ( o ) Optimal Resource Allocation
+─────────────────────────────────────────────
+Resource Allocation
+  What the plan should favour   [ Balanced (planner's default) ▾ ]
+  How fast demand grows (% a year) [ ────●──── ] 4.5
+  Plan up to                    [ ─────────●─ ] 2035
+─────────────────────────────────────────────
+Unit Selection
+  Electricity  [ GWh    ▾ ]
+  Cost         [ USD bn ▾ ]
+  Emission     [ t      ▾ ]
+```
+
+The three dropdowns cover everything the page draws: Electricity drives the need
+on K1, the V1 and V3 axes and the four power columns of the plan table; Cost
+drives K2, V2's cost line and the table's cost column; Emission drives K2's CO₂
+row, V2's carbon line and the table's CO₂ column.
+
+What does *not* move: the clean share, the fuel-bought-abroad share, the
+"1.6× the 2024 need" ratio, the unserved percentage, and the six 0–100 scores on
+V4 — each is a ratio of two figures in the same unit, or a fixed-reference
+yardstick.  `Gas` was dropped from this page's declaration when the gas
+self-sufficiency card went; nothing on Q10 prints BCF any more, so the sidebar
+would otherwise offer a slicer with nothing to slice.
+
+* **Default of every dropdown = the database BASE UNIT** of that domain  (`TOE`, `GWh`, `MW`, `BCF`, `t`; `USD bn` on the three pages whose money is worked
+  out rather than stored — Q7, Q8 and Q10 — whose Cost domain stores in `USD`
+  but starts a national yearly bill in billions, since in plain dollars the
+  numbers run to ten digits) — i.e. the screen initially shows exactly what
   is stored in MySQL.
 * Choosing any other unit re-renders that dashboard in the chosen unit: KPI
   cards, impact metrics, chart axes, hover tooltips and section badges.

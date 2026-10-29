@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from core import queries
 from core.cost_forecast import (
     COST_SCENARIO_ORDER,
+    COST_TECHS,
     HISTORY_END,
     HORIZON,
     build_cost_dashboard_data,
@@ -71,13 +72,13 @@ def main() -> int:
 
     hist, fc = data["history"], data["forecast"]
 
-    section("Q7 KPI STRIP")
+    section("THE THREE CARDS")
     last = hist.iloc[-1]
-    print(f"Reported cost bill {HISTORY_END}:  {last['cost_total_usd']/BN:12,.2f} USD bn")
-    print(f"Blended buying price {HISTORY_END}:  {last['avg_usd_per_mwh']:12,.1f} US$/MWh")
-    print(f"Fuel-cost share of bill:       {last['fuel_cost_share_pct']:12,.1f} %")
+    print(f"Paid to producers {HISTORY_END}:   {last['cost_total_usd']/BN:12,.2f} USD bn")
+    print(f"Average price paid {HISTORY_END}:   {last['avg_usd_per_mwh']:12,.1f} US$/MWh")
+    print(f"Fuel part of the bill:         {last['fuel_cost_share_pct']:12,.1f} %")
 
-    section(f"Scenario bill at horizon {HORIZON} (USD bn)")
+    section(f"THE BILL IT POINTS TO BY {HORIZON} (USD bn)")
     for sc in COST_SCENARIO_ORDER:
         row = fc[(fc["scenario"] == sc) & (fc["calendar_year"] == HORIZON)]
         if row.empty:
@@ -87,15 +88,20 @@ def main() -> int:
               f"avg={r['avg_usd_per_mwh']:>6,.1f} US$/MWh   "
               f"RE share={r['re_share_pct']:>5,.1f}%")
 
-    section("Cost avoided by RE 50% vs Minimum RE")
-    av = data["avoided"]
-    if av.empty:
-        print("  (empty -- both bookend scenarios required)")
+    section(f"WHERE THE MONEY GOES -- each source, {HISTORY_END} paid vs {HORIZON} planned")
+    ref_row = fc[(fc["scenario"] == "Reference") & (fc["calendar_year"] == HORIZON)]
+    if ref_row.empty:
+        print("  (empty -- the planned build-out case was not drawn)")
     else:
-        print(f"Annual saving {HORIZON}:      {av['delta_usd'].iloc[-1]/BN:10,.2f} USD bn")
-        print(f"Cumulative to {HORIZON}:   {av['cumulative_usd'].iloc[-1]/BN:10,.2f} USD bn")
+        ref_row = ref_row.iloc[0]
+        for tech in COST_TECHS:
+            key = tech.lower().replace(" ", "")
+            now = float(last[f"cost_{key}_usd"])
+            then = float(ref_row[f"cost_{key}_usd"])
+            print(f"  {tech:<10} {now/BN:>9,.2f} -> {then/BN:>9,.2f} USD bn  "
+                  f"({(then - now)/BN:+.2f})")
 
-    section("Fuel-price sensitivity (Reference case, USD bn)")
+    section("IF FUEL PRICES RISE FASTER OR SLOWER (planned build-out, USD bn)")
     sens = data["sensitivity"]
     if not sens.empty:
         row = sens[sens["calendar_year"] == HORIZON]
@@ -104,7 +110,7 @@ def main() -> int:
         for c in [c for c in sens.columns if c != "calendar_year"]:
             print(f"  {c.replace('cost_', '').replace('_usd', ''):<14} {row.iloc[0][c]/BN:>10,.2f}")
 
-    section("Model backtest (2021-2024 hold-out)")
+    section("HOW FAR THE MODEL MISSES (2021-2024, years it had not been shown)")
     bt = data["backtest"]["table"]
     if bt.empty:
         print("  (insufficient data)")
@@ -118,13 +124,20 @@ def main() -> int:
     ok = True
     book = fc[fc["calendar_year"] == HORIZON].set_index("scenario")["cost_total_usd"]
     if {"Minimum RE", "RE 50%"} <= set(book.index) and book["RE 50%"] >= book["Minimum RE"]:
-        print("  [FAIL] RE 50% bill should undercut Minimum RE")
+        print("  [FAIL] Half clean power bill should be the cheaper one")
         ok = False
     if last["cost_total_usd"] <= 0:
         print("  [FAIL] non-positive reported cost bill")
         ok = False
     if hist["avg_usd_per_mwh"].min() < 15.0:
         print("  [FAIL] blended price fell below the unit-cost floor")
+        ok = False
+    # A source the record never reported carries no cost: it reads blank (NaN)
+    # under the no-bridge rule, which is correct.  Only a genuine non-zero cost
+    # attributed to it would be wrong.
+    _other_re_cost = float(last["cost_otherre_usd"])
+    if not pd.isna(_other_re_cost) and _other_re_cost != 0.0:
+        print("  [FAIL] cost charged to a source the record never reported")
         ok = False
     print("  All sanity checks passed." if ok else "  Review the failures above.")
     return 0 if ok else 1

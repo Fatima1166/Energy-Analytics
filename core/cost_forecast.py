@@ -218,14 +218,21 @@ def build_cost_history(hist: pd.DataFrame, fuel_infl_pct: float) -> pd.DataFrame
         return h
 
     h = h.reset_index(drop=True)
+
+    def _reported(frame, col):
+        """The readings, with a NULL left as NULL (never a written zero)."""
+        return pd.to_numeric(frame[col], errors="coerce") if col in frame.columns \
+            else pd.Series(float("nan"), index=frame.index)
+
+    def _sum_strict(cols):
+        """Sum only the sources the record reports at all, keeping a year that
+        leaves one of them blank without a total instead of counting the
+        absence as a zero."""
+        cols = [c for c in cols if h[c].notna().any()]
+        return h[cols].sum(axis=1, min_count=len(cols)) if cols else np.nan
+
     for tech in COST_TECHS:
-        col = HIST_COL[tech]
-        if col in h.columns:
-            h[f"gen_{tech.lower().replace(' ', '_')}_gwh"] = (
-                pd.to_numeric(h[col], errors="coerce").fillna(0.0)
-            )
-        else:
-            h[f"gen_{tech.lower().replace(' ', '_')}_gwh"] = 0.0
+        h[f"gen_{tech.lower().replace(' ', '_')}_gwh"] = _reported(h, HIST_COL[tech])
 
     table = unit_cost_table(h["calendar_year"].values, fuel_infl_pct)
     for tech in COST_TECHS:
@@ -235,18 +242,20 @@ def build_cost_history(hist: pd.DataFrame, fuel_infl_pct: float) -> pd.DataFrame
             * table[tech].values
         )
     cost_cols = [f"cost_{t.lower().replace(' ', '')}_usd" for t in COST_TECHS]
-    h["cost_total_usd"] = h[cost_cols].sum(axis=1)
+    h["cost_total_usd"] = _sum_strict(cost_cols)
     h["avg_usd_per_mwh"] = h["cost_total_usd"] / (h["gen_total_gwh"] * 1000.0)
 
-    gen_cols = [f"gen_{t.lower().replace(' ', '_')}_gwh" for t in COST_TECHS]
-    h["gen_re_bucket_gwh"] = (h["gen_solar_gwh"] + h["gen_wind_gwh"]
-                              + h["gen_hydro_gwh"] + h["gen_other_re_gwh"])
+    re_cols = [f"gen_{t.lower().replace(' ', '_')}_gwh"
+               for t in ("Solar", "Wind", "Hydro", "Other RE")]
+    h["gen_re_bucket_gwh"] = _sum_strict(re_cols)
     h["re_share_pct"] = np.where(h["gen_total_gwh"] > 0,
-                                 h["gen_re_bucket_gwh"] / h["gen_total_gwh"] * 100.0, 0.0)
+                                 h["gen_re_bucket_gwh"] / h["gen_total_gwh"] * 100.0,
+                                 np.nan)
+    fuel_cols = ["cost_coal_usd", "cost_gas_usd"]
     h["fuel_cost_share_pct"] = np.where(
         h["cost_total_usd"] > 0,
-        (h["cost_coal_usd"] + h["cost_gas_usd"]) / h["cost_total_usd"] * 100.0,
-        0.0,
+        _sum_strict(fuel_cols) / h["cost_total_usd"] * 100.0,
+        np.nan,
     )
     h["provenance"] = ACTUAL
     keep = (["calendar_year", "provenance", "real_gdp_idx", "gen_total_gwh",
@@ -309,15 +318,18 @@ def project_cost_scenarios(
             re_gwh = tot * re_share
             sw_gwh = re_gwh * sw_weight
             rest_gwh = re_gwh - sw_gwh
-            # Distribute solar+wind in 2024 proportion; balance to hydro / other RE
+            # Distribute solar+wind in 2024 proportion.  The remaining clean
+            # share goes to hydro: the reported record holds no generation for
+            # "Other RE" in any year (gen_other_renewables_gwh is empty), so the
+            # forecast does not invent a priced slice for it.
             sol24 = _num(hist_cost.iloc[-1]["gen_solar_gwh"])
             wnd24 = _num(hist_cost.iloc[-1]["gen_wind_gwh"])
             sol_w = sol24 / (sol24 + wnd24) if (sol24 + wnd24) > 0 else 0.5
             gen = {
                 "Solar": sw_gwh * sol_w,
                 "Wind": sw_gwh * (1.0 - sol_w),
-                "Hydro": rest_gwh * 0.90,
-                "Other RE": rest_gwh * 0.10,
+                "Hydro": rest_gwh,
+                "Other RE": 0.0,
                 "Nuclear": tot * nuc_share,
                 "Coal": thermal_share * tot * p["coal_split"],
                 "Gas": thermal_share * tot * (1.0 - p["coal_split"]),

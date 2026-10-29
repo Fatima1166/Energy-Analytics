@@ -37,8 +37,6 @@ from dashboards.q9_operational_bottlenecks.charts import (
     visual2_capacity_factor_trend,
     visual3_capability_gap,
     visual4_gas_supply_gap,
-    visual5_td_loss_drain,
-    visual6_re_capability_output,
 )
 
 
@@ -69,34 +67,39 @@ def main() -> int:
     print(f"years           : {int(df.calendar_year.min())}-{int(df.calendar_year.max())}")
 
     snap = snapshot_metrics(df, base_year)
-    print(f"{base_year} load factor  : {snap['sys_load_factor_pct']:.1f}%")
-    print(f"{base_year} fossil CF   : {snap['fossil_cf_pct']:.1f}%")
-    print(f"{base_year} RE CF       : {snap['re_cf_pct']:.1f}%")
-    print(f"{base_year} gas self-suf: {snap['gas_self_suff_pct']:.1f}%  gap {snap['gas_gap_bcf']:.1f} BCF")
-    print(f"{base_year} T&D loss    : {snap['td_loss_pct']:.1f}%")
-    print(f"{base_year} import dep  : {snap['fossil_import_dep_pct']:.1f}%")
+    print(f"{base_year} load factor  : {snap['sys_load_factor_pct']:.1f}%  "
+          f"(read {snap['sys_load_factor_pct_year']})")
+    print(f"{base_year} fossil CF   : {snap['fossil_cf_pct']:.1f}%  "
+          f"(read {snap['fossil_cf_pct_year']})")
+    print(f"{base_year} RE CF       : {snap['re_cf_pct']:.1f}%  "
+          f"(read {snap['re_cf_pct_year']})")
+    print(f"{base_year} gas self-suf: {snap['gas_self_suff_pct']:.1f}%  "
+          f"gap {snap['gas_gap_bcf']:.1f} BCF  "
+          f"(read {snap['gas_self_suff_pct_year']})")
+    print(f"{base_year} T&D loss    : {snap['td_loss_pct']:.1f}%  "
+          f"(read {snap['td_loss_pct_year']})")
+    print(f"{base_year} import dep  : {snap['fossil_import_dep_pct']:.1f}%  "
+          f"(read {snap['fossil_import_dep_pct_year']})")
 
     sc = score_bottlenecks(df, base_year)
     assert not sc.empty, "empty scorecard"
     print("\nBottleneck scorecard (ranked):")
     for _, r in sc.iterrows():
-        print(f"  [{r['family']:<9s}] {r['severity']:5.0f}  {r['name']:<38s} {r['reading']}")
+        print(f"  [{r['family']:<9s}] {r['severity']:5.0f}  {r['name']:<24s} "
+              f"{r['reading']:<24s} {r['obs_year']}")
 
     fam = aggregate_by_family(sc)
     print("\nMean severity by family:",
           {k: (round(v) if v == v else None) for k, v in fam.items()})
 
     factor_elec = display_factor("electricity", "GWh")
-    factor_power = display_factor("power", "MW")
     factor_gas = display_factor("gas", "BCF")
 
     figs = [
-        visual1_severity_scorecard(sc, base_year),
+        visual1_severity_scorecard(sc),
         visual2_capacity_factor_trend(df),
         visual3_capability_gap(df, factor_elec, "GWh"),
         visual4_gas_supply_gap(df, factor_gas, "BCF"),
-        visual5_td_loss_drain(df),
-        visual6_re_capability_output(df, factor_power, "MW", factor_elec, "GWh"),
     ]
     for i, f in enumerate(figs, 1):
         n = len(f.data)

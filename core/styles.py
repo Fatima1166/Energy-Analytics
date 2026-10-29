@@ -201,6 +201,14 @@ def inject_css():
     }
 
     /* ---------- Equal Column Heights across all Streamlit versions ---------- */
+    /* Streamlit lays columns out in a flex row that defaults to align-items:
+       flex-start, so a column only ever grows to its own content and a card's
+       height:100% has nothing to resolve against. Forcing the row to stretch
+       makes every column as tall as the tallest one, which is what lets the
+       KPI cards below fill their column and share one bottom baseline. */
+    [data-testid="stHorizontalBlock"] {
+        align-items: stretch !important;
+    }
     [data-testid="column"],
     [data-testid="stColumn"],
     .stColumn {
@@ -229,20 +237,21 @@ def inject_css():
         width: 100% !important;
     }
 
-    /* ---------- KPI Card with Equal Height & Bottom Balance (Q2) ---------- */
+    /* ---------- KPI Card (Q2) -- content stacks from the top and the card
+       grows to fit, so a two-line delta is never clipped ------------------------ */
     .kpi-card {
         background: linear-gradient(145deg, rgba(28, 33, 44, 0.95) 0%, rgba(18, 22, 30, 0.98) 100%);
         border-radius: 12px;
-        padding: 14px 16px;
+        padding: 12px 14px;
         border: 1px solid rgba(255, 255, 255, 0.07);
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-        height: 142px !important;
-        min-height: 142px !important;
-        max-height: 142px !important;
+        height: auto !important;
+        min-height: 140px !important;
+        max-height: none !important;
         box-sizing: border-box !important;
         display: flex !important;
         flex-direction: column !important;
-        justify-content: space-between !important;
+        justify-content: flex-start !important;
         position: relative; overflow: hidden;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         width: 100% !important;
@@ -286,7 +295,7 @@ def inject_css():
         border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
         padding-top: 6px !important;
     }
-    .kpi-icon-wrap { margin-bottom: 8px; }
+    .kpi-icon-wrap { margin-bottom: 6px; }
     .kpi-icon {
         color: #2ECC71; font-size: 16px;
         background: rgba(46,204,113,0.12);
@@ -305,17 +314,37 @@ def inject_css():
     .kpi-title {
         color: #94A3B8; font-size: 10.5px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.5px;
-        margin-bottom: 4px;
-        min-height: 28px;
-        line-height: 1.35;
+        margin-bottom: 3px;
+        line-height: 1.3;
     }
     .kpi-value {
         color: #F8FAFC; font-size: 23px; font-weight: 800;
         margin: 0; line-height: 1.15; letter-spacing: -0.5px;
     }
     .kpi-unit { color: #64748B; font-size: 11.5px; font-weight: 500; margin-left: 3px; }
-    .kpi-delta-up   { color: #10B981; font-size: 11px; font-weight: 600; margin-top: auto; display: flex; align-items: center; gap: 4px; }
-    .kpi-delta-down { color: #EF4444; font-size: 11px; font-weight: 600; margin-top: auto; display: flex; align-items: center; gap: 4px; }
+    /* Each card reserves the same two lines for its delta and pins that block to
+       the bottom, so a one-line card and a two-line card end up the same height
+       and every card in the row shares one baseline. */
+    .kpi-delta-up   { color: #10B981; font-size: 11px; font-weight: 600; line-height: 1.35; min-height: 30px; margin-top: auto; display: flex; align-items: center; gap: 4px; }
+    .kpi-delta-down { color: #EF4444; font-size: 11px; font-weight: 600; line-height: 1.35; min-height: 30px; margin-top: auto; display: flex; align-items: center; gap: 4px; }
+
+    /* ---------- Conclusion Card -- the short "Bottom Line" takeaway that
+       closes every dashboard, one green-accented strip under the visuals --- */
+    .concl-card {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.07) 0%, rgba(20, 25, 36, 0.96) 45%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-left: 4px solid #10B981;
+        border-radius: 12px;
+        padding: 12px 16px 13px;
+        margin: 10px 0 6px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+    .concl-head {
+        display: flex; align-items: center; gap: 8px;
+        color: #FFFFFF; font-size: 11.5px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .concl-head i { color: #10B981; font-size: 12px; }
 
     /* ---------- Section Card ---------- */
     .section-card {
@@ -346,6 +375,9 @@ def inject_css():
         border-radius: 20px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        margin-left: auto;
     }
     .pulse-badge {
         animation: pulseBlue 2s infinite ease-in-out;

@@ -13,7 +13,7 @@ against their targets, ranks how badly each is missed, and projects them all to
 | Part of the question | What the dashboard does |
 |---|---|
 | "bottlenecks" | Four KPIs scored against benchmarks and ranked worst-first |
-| "achieving planned targets" | Gap to benchmark in percentage points, plus % of benchmark delivered |
+| "achieving planned targets" | Each card carries its benchmark, the gap in percentage points, and a `#1 / #2 bottleneck` chip on the worst misses |
 | "planned" horizon | Every series runs 2002 → 2035, with reported vs modelled years marked |
 
 ---
@@ -21,9 +21,9 @@ against their targets, ranks how badly each is missed, and projects them all to
 ## 2. The four KPIs
 
 All four are judged on a **single reference year** — the final year of the
-sidebar Year Range — so they stay comparable. Each card carries the benchmark,
-the direction-aware gap, the year-over-year move, and how much of the benchmark
-is delivered.
+sidebar Years range — so they stay comparable. Each card carries the benchmark,
+the direction-aware gap, the year-over-year move, the severity band, and a
+`#1 bottleneck` / `#2 bottleneck` chip on the two worst misses.
 
 | Code | KPI | Working | Benchmark | Better when |
 |---|---|---|---|---|
@@ -46,7 +46,7 @@ comfortably inside the target.
 
 **Default view (range 2002–2035, judged on 2035):**
 
-| KPI | Value | Gap | % of benchmark | Verdict |
+| KPI | Value | Gap | % of benchmark | Card badge |
 |---|---|---|---|---|
 | K1 Losses | 27.16% | +1.1pp | 104% | On track |
 | K2 Import Dependence | 38.26% | −38.3pp | 0% | Severe |
@@ -67,12 +67,15 @@ target missed badly is not hidden by a large target missed slightly.
 
 | # | Chart | Working |
 |---|---|---|
-| V1 | **Energy loss waterfall** | Primary supply → transformation losses → T&D losses → other → final consumption, for the range's final year; balances exactly |
-| V2 | **Losses vs benchmark** | Actual path against the benchmark line, gap shaded, star on the first year the target is met |
-| V3 | **Import dependence** | Import share over time with imported volume as context bars |
-| V4 | **Gas production vs consumption** | Bars for production and consumption, deficit shaded, self-sufficiency on a second axis |
-| V5 | **Benchmark gaps** | All four gaps on one axis; above zero = benchmark met |
-| V6 | **Achievement vs benchmark** | % of each benchmark delivered, bars coloured by severity |
+| V1 | **Where the Energy Is Lost** (waterfall) | Primary supply → transformation losses → T&D losses → other → final consumption, for the range's final year; balances exactly |
+| V2 | **Energy We Import** | Import share over time with imported volume as bars; years with no import row stay blank |
+| V3 | **Gas Made vs Gas Used** | Bars for production and consumption, deficit shaded, self-sufficiency on a second axis against its benchmark |
+| V4 | **Distance to Each Target** | All four gaps on one axis; above the middle line = benchmark met |
+| V5 | **Better Or Worse** | Slope chart: each metric's first reported year to its last reported year, coloured green when it moved the right way and red when it moved the wrong way |
+
+The two charts that used to sit here were dropped because they only redrew what
+the cards and V4 already say: one metric's own path against its benchmark line,
+and achievement bars for the four targets.
 
 ### 3.2 Sidebar
 
@@ -80,14 +83,8 @@ Deliberately minimal — one control.
 
 | Control | Range | Effect |
 |---|---|---|
-| **Year Range** | 2002 – 2035 | Zooms every chart, sets the year the KPI cards and the waterfall are judged on |
+| **Years to show** | 2002 – 2035 | Zooms every chart, sets the year the KPI cards and the waterfall are judged on |
 | **Unit Selection** | Energy (TOE/KTOE/MTOE), Gas (BCF/TCF/MMSCF) | Re-renders the waterfall, import bars and gas chart |
-
-### 3.3 Footer
-
-A three-line footnote describing the live view: the range and benchmark year, the
-method and which KPI is currently most urgent, the sources, and an amber note
-naming exactly which series are modelled rather than measured.
 
 ---
 
@@ -119,11 +116,15 @@ Every annual value is tagged, and the tags drive the line styles:
 | Tag | Meaning | Drawn as |
 |---|---|---|
 | **Actual** | Reported in the database | solid |
-| **Estimated** | Bridged where the source table has a gap | dotted |
-| **Projected** | Modelled beyond the last reported year | dashed |
+| **Missing** | A year inside the reported window with no reading — it prints nothing | line break |
+| **Projected** | Modelled past the last reported year (2025 onwards) | dashed |
+
+Nothing is bridged inside the window: an unreported year leaves a visible gap in
+the line rather than an estimate.
 
 Reported coverage differs per metric — losses stop at 2019, gas at 2018,
-generation at 2024 — so each series is extended from its own last reported year.
+generation at 2024 — so each series is projected on from its own last reported
+year; the years before that with no reading stay blank.
 
 ### Projection rules
 
@@ -156,9 +157,9 @@ generation at 2024 — so each series is extended from its own last reported yea
 ## 6. Known limitations
 
 - **Import data stops at 2018.** `fact_primary_energy_supply` has no import rows
-  for 2019 onwards, so K2 and its chart are trend-bridged from 2018. These are
-  estimates and are labelled as such; load real import rows and the KPI will pick
-  them up automatically.
+  for 2019 onwards, so 2019–2024 print no reading on the K2 card and break the
+  chart line; K2's 2035 value is a trend projection from 2018, tagged
+  `Projected`. Load real import rows and the KPI picks them up automatically.
 - **K2's benchmark is 0%** (the historical minimum), which makes it arithmetically
   impossible to satisfy. It is the data-derived floor, not a policy goal.
 - **Losses beyond 2019** are modelled because `fact_energy_overview` ends there,
@@ -172,9 +173,8 @@ generation at 2024 — so each series is extended from its own last reported yea
 
 | File | Purpose |
 |---|---|
-| `page.py` | Sidebar, KPI cards, layout, footer |
-| `charts.py` | The six Plotly figures |
-| `config.py` | View constants only — benchmarks deliberately live in the database |
+| `page.py` | Sidebar, KPI cards, layout |
+| `charts.py` | The four Plotly figures |
 | `README.md` | This document |
 
 Related: [`core/bottleneck_metrics.py`](../../core/bottleneck_metrics.py) (projection

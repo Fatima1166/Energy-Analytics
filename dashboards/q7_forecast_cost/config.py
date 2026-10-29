@@ -1,59 +1,29 @@
-# Configuration for the Forecasted Power Producer Cost dashboard (question 7).
+# Configuration for the Forecasted Producer Cost dashboard (Question 7).
+#
+# Question 7 asks what electricity bought from power producers will cost, so this
+# file holds only what that answer needs: the build-out cases said in plain words,
+# the technologies the page actually draws, and the palette.  The cost maths lives
+# in core/cost_forecast.py.
 
-DASHBOARD_TITLE = "Forecasted Cost of Energy Power Producers (1999-2035)"
-DEFAULT_HORIZON = 2035
-DEFAULT_CALIB_START = 2012
-DEFAULT_BASE_GDP_GROWTH = 4.0
-DEFAULT_FUEL_INFL = 3.0
-DEFAULT_SPREAD_PP = 2.0
+from core.cost_forecast import COST_TECHS
 
-# The six analytical elements of Question 7:
-ELEMENTS = [
-    {
-        "id": "E1",
-        "title": "Producer cost snapshot (KPI strip)",
-        "objective": 1,
-        "what": "Reported 2024 purchase-cost bill, horizon-year projected cost, blended "
-                "US$/MWh and cumulative cost avoidance of the RE 50% pathway",
-    },
-    {
-        "id": "E2",
-        "title": "V1 Historical cost bill purchased from power producers",
-        "objective": 1,
-        "what": "Per-technology generation priced at implied purchase tariffs "
-                "(US$/MWh), 1999-2024, plus blended average buying price",
-    },
-    {
-        "id": "E3",
-        "title": "V2 Fuel price exposure, sensitivity & backtest",
-        "objective": 2,
-        "what": "Reference-cost band under low/base/high fuel escalation + hold-out "
-                "validation of the cost model (2021-2024)",
-    },
-    {
-        "id": "E4",
-        "title": "V3 Cost avoidance & unit-cost learning curves",
-        "objective": 3,
-        "what": "Annual and cumulative producer-cost avoided by RE 50% vs Minimum RE, "
-                "and blended purchase price trajectories per deployment case",
-    },
-    {
-        "id": "E5",
-        "title": "V4 Who gets paid what (cost mix by technology)",
-        "objective": 4,
-        "what": "Stacked cost bill by technology for the selected deployment case and "
-                "2024 vs horizon-year bar comparison",
-    },
-    {
-        "id": "E6",
-        "title": "V5 Forecasted producer cost by deployment case",
-        "objective": 5,
-        "what": "Total purchase-cost fan Minimum RE / Reference / RE 50% to the horizon, "
-                "anchored on the reported 2024 bill",
-    },
-]
+# The three build-out cases the engine prices.  Total generation is the same in
+# every case -- only the mix differs -- so these say which mix is being bought.
+CASE_WORDS = {
+    "Minimum RE": "Little clean power",
+    "Reference": "The planned build-out",
+    "RE 50%": "Half clean power",
+}
 
-# Curated palette matched to the platform design system
+DEFAULT_CASE = "Reference"
+
+# Technologies shown.  "Other RE" is left out on purpose: the reported record
+# holds no generation for it in any year (fact_renewable_energy
+# .gen_other_renewables_gwh is empty), so drawing it only adds a legend entry and
+# a bar that are always zero.
+TECHS_SHOWN = [t for t in COST_TECHS if t != "Other RE"]
+
+# Palette matched to the platform design system
 GREEN = "#10B981"
 BLUE = "#00A6FB"
 AMBER = "#F59E0B"
@@ -62,5 +32,5 @@ PURPLE = "#A78BFA"
 TEAL = "#14B8A6"
 CYAN = "#22D3EE"
 SLATE = "#94A3B8"
-
-ACCENT = AMBER  # cost dashboards anchor on amber/gold
+LIGHT = "#CBD5E1"
+TEXT = "#E2E8F0"

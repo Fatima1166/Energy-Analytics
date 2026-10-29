@@ -1,5 +1,18 @@
 """
 Forecasted Energy Demand dashboard (Question 4).
+
+Question 4 asks what energy demand will be, so this page keeps only what that
+answer needs:
+
+  1. Sidebar    -- which scenarios to draw, and how far ahead to forecast
+  2. KPI cards  -- demand now, demand at the horizon, and how fast it grows
+  3. Visuals    -- where demand has been, the three paths to the horizon, what
+                   moves it, who uses the electricity, and how far the forecast
+                   can be trusted
+
+Two things are deliberately not here.  What supply will do -- the supply gap and
+import dependency -- is Question 5's job, and the model is fitted on the whole
+record with the data-driven defaults, so there are no fitting knobs to turn.
 """
 
 from __future__ import annotations
@@ -10,7 +23,7 @@ import pandas as pd
 import streamlit as st
 
 from config.database import run_query
-from core.components import section_title
+from core.components import conclusion_card, section_title
 from core.demand_forecast import (
     DEFAULT_BASE_GDP_GROWTH,
     DEFAULT_CALIB_START,
@@ -20,16 +33,11 @@ from core.demand_forecast import (
     SCENARIO_COLORS,
     SCENARIO_ORDER,
     build_dashboard_data,
-    series_spec,
 )
 from core.queries import (
     Q_ECONOMIC,
-    Q_ELEC_GEN,
-    Q_ELEC_PROVINCE_CONSUMPTION,
     Q_ELEC_SECTOR_CONSUMPTION,
     Q_FINAL_ENERGY_BY_SOURCE,
-    Q_NATURAL_GAS,
-    Q_PRIMARY_SUPPLY,
     Q_RENEWABLE_ENERGY,
 )
 from core.unit_slicer import get_units
@@ -39,13 +47,8 @@ from .charts import (
     visual1_history_trends,
     visual2_scenario_fans,
     visual3_drivers,
-    visual4_decomposition,
-    visual5_province_mix,
-    visual5_sector_mix,
-    visual6_gap,
-    visual6_imports,
-    visual7_backtest_mape,
-    visual7_backtest_path,
+    visual4_sector_mix,
+    visual5_reliability,
 )
 
 VIEW_START = 2000
@@ -57,11 +60,11 @@ _CHART_CONFIG = {"displayModeBar": False}
 
 # --- Sidebar controls ---
 
-def _data_default_gdp_growth() -> float:
-    """Median real GDP growth of the last ten reported years, as a % default."""
+def _recent_gdp_growth(econ_df: pd.DataFrame) -> float:
+    """Median real GDP growth of the last ten reported years, as a %."""
     try:
-        frame = run_query(Q_ECONOMIC)
-        series = pd.to_numeric(frame["gdp_growth_pct"], errors="coerce").dropna().tail(10)
+        series = (pd.to_numeric(econ_df["gdp_growth_pct"], errors="coerce")
+                  .dropna().tail(10))
         if not series.empty:
             value = float(series.median())
             if math.isfinite(value):
@@ -73,60 +76,52 @@ def _data_default_gdp_growth() -> float:
 
 def sidebar() -> None:
     """Called by app.py before the global unit slicer."""
-    st.sidebar.markdown('<div class="dsh-side-title">Forecast Setup</div>',
+    st.sidebar.markdown('<div class="dsh-side-title">Forecast</div>',
                         unsafe_allow_html=True)
 
     scenarios = st.sidebar.multiselect(
-        "Scenarios", SCENARIO_ORDER, default=SCENARIO_ORDER, key="q4_scenarios",
-        help="Which Low / Base / High paths to draw and to price the KPI cards with.",
+        "Scenarios to show", SCENARIO_ORDER, default=SCENARIO_ORDER,
+        key="q4_scenarios",
+        help=("Which paths to draw: a slow-growing economy, the planned one, "
+              "or a fast-growing one."),
     )
     if not scenarios:
         scenarios = ["Base"]
 
     horizon = st.sidebar.slider(
-        "Forecast horizon", min_value=2026, max_value=2035, value=HORIZON,
+        "Forecast up to", min_value=2026, max_value=2035, value=HORIZON,
         step=1, key="q4_horizon",
-        help="Last modelled year. The residual drift fades to zero by this year.",
+        help="The last year the model looks ahead to.",
     )
-
-    with st.sidebar.expander("Advanced Model Settings", expanded=False):
-        model_choice = st.radio(
-            "Forecast basis", ["Driver", "Trend"], index=0, key="q4_model",
-            help=("Driver: demand responds to GDP and population through the fitted "
-                  "elasticities. Trend: the fitted log-linear growth, shifted by half "
-                  "the GDP surprise."),
-        )
-
-        calib_start = st.slider(
-            "Calibration start", min_value=2005, max_value=2020,
-            value=DEFAULT_CALIB_START, step=1, key="q4_calib",
-            help="Elasticities and trends are fitted from this year to 2024.",
-        )
-
-        base_gdp = st.slider(
-            "Base GDP growth %", min_value=1.0, max_value=8.0,
-            value=_data_default_gdp_growth(), step=0.1, key="q4_gdp",
-            help="Real GDP growth assumed for the Base scenario.",
-        )
-
-        spread = st.slider(
-            "Scenario spread ±pp", min_value=0.0, max_value=3.0,
-            value=DEFAULT_SCENARIO_SPREAD, step=0.25, key="q4_spread",
-            help="Low = Base − spread, High = Base + spread, in percentage points of GDP growth.",
-        )
 
     st.session_state[FILTERS_KEY] = {
         "scenarios": list(scenarios),
-        "model_choice": model_choice,
-        "calib_start": int(calib_start),
         "horizon": int(horizon),
-        "base_gdp_growth": float(base_gdp),
-        "spread": float(spread),
     }
     st.sidebar.divider()
 
 
 # ═══════════════════════════════ UI helpers ═════════════════════════════════
+
+# The shared card sheet in core/styles.py pins every .kpi-balance card to a fixed
+# 225px and pushes its detail rows to the bottom, which leaves a dead band across
+# the middle of a short card.  These page-scoped selectors carry the same
+# !important but match more precisely, so they win -- and only for this page.
+# Cards in the row stay level because each one carries three detail rows and the
+# title block reserves two lines, not because a card height is forced.
+_CARD_CSS = """
+<style>
+  .kpi-balance.q4-kpi {
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      justify-content: flex-start !important;
+      padding: 13px 14px 12px !important;
+  }
+  .kpi-balance.q4-kpi .kpi-balance-details { margin-top: 0 !important; }
+</style>
+"""
+
 
 def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
               accent: str = "#00A6FB", icon_name: str = "demand",
@@ -146,7 +141,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
                   f'border:1px solid {badge_colour}55;white-space:nowrap;">{badge}</span>'
                   if badge else "")
     return f"""
-<div class="kpi-balance" style="border: 1px solid {accent}44;">
+<div class="kpi-balance q4-kpi" style="border: 1px solid {accent}44;">
   <div style="position:absolute;top:0;left:0;right:0;height:2.5px;
               background:linear-gradient(90deg,{accent}00,{accent},{accent}00);"></div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -166,7 +161,7 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
                  font-family:'JetBrains Mono','Courier New',monospace;">{value}</span>
     <span style="color:#64748B;font-size:10px;font-weight:600;">{unit}</span>
   </div>
-  <div class="kpi-balance-details" style="margin-top:auto;">{detail}</div>
+  <div class="kpi-balance-details">{detail}</div>
 </div>
 """
 
@@ -191,11 +186,7 @@ def render() -> None:
     units = get_units()
     filters = st.session_state.get(FILTERS_KEY) or {}
     scenarios = filters.get("scenarios") or ["Base"]
-    model_choice = filters.get("model_choice", "Driver")
-    calib_start = int(filters.get("calib_start", DEFAULT_CALIB_START))
     horizon = int(filters.get("horizon", HORIZON))
-    base_gdp = float(filters.get("base_gdp_growth", DEFAULT_BASE_GDP_GROWTH))
-    spread = float(filters.get("spread", DEFAULT_SCENARIO_SPREAD))
     base_scenario = "Base" if "Base" in scenarios else scenarios[0]
 
     energy_unit = normalise(units.get("energy", "TOE"))
@@ -203,23 +194,26 @@ def render() -> None:
     e_factor = display_factor("energy", energy_unit)
     g_factor = display_factor("electricity", elec_unit)
 
-    # Fetch data
+    # Fetch data.  The supply and province tables are handed over empty on
+    # purpose: what supply will do is Question 5's answer, and every table here
+    # is a MySQL round trip this page would otherwise throw away.
     try:
+        econ_df = run_query(Q_ECONOMIC)
         data = build_dashboard_data(
             fuel_df=run_query(Q_FINAL_ENERGY_BY_SOURCE),
             re_df=run_query(Q_RENEWABLE_ENERGY),
-            econ_df=run_query(Q_ECONOMIC),
-            primary_df=run_query(Q_PRIMARY_SUPPLY),
-            gen_df=run_query(Q_ELEC_GEN),
-            gas_df=run_query(Q_NATURAL_GAS),
+            econ_df=econ_df,
+            primary_df=pd.DataFrame(),
+            gen_df=pd.DataFrame(),
+            gas_df=pd.DataFrame(),
             sector_df=run_query(Q_ELEC_SECTOR_CONSUMPTION),
-            province_df=run_query(Q_ELEC_PROVINCE_CONSUMPTION),
+            province_df=pd.DataFrame(),
             scenarios=scenarios,
-            calib_start=calib_start,
+            calib_start=DEFAULT_CALIB_START,
             horizon=horizon,
-            base_gdp_growth=base_gdp,
-            spread=spread,
-            model_choice=model_choice,
+            base_gdp_growth=_recent_gdp_growth(econ_df),
+            spread=DEFAULT_SCENARIO_SPREAD,
+            model_choice="Driver",
         )
     except Exception as exc:
         st.error(f"Could not load demand data: {exc}")
@@ -231,13 +225,10 @@ def render() -> None:
     breaks = data.get("breaks", {})
     total_break = breaks.get("total_final")
 
-    # KPI Strip
+    # KPI cards -- the three numbers the question asks for
     total = kpis.get("total_final", {})
     grid = kpis.get("elec_grid", {})
-    elasticity = kpis.get("elasticity", {})
-    gap = kpis.get("supply_gap", {})
     cagr = kpis.get("demand_cagr", {})
-    imports = kpis.get("imports", {})
 
     total_now = _num(total.get("value")) * e_factor
     total_horizon = _num(total.get("horizon_value")) * e_factor
@@ -248,214 +239,112 @@ def render() -> None:
 
     cards = [
         _kpi_card(
-            "K1", f"Total final energy demand, {total.get('year', HISTORY_END)}",
+            "K1", f"Total energy demand, {total.get('year', HISTORY_END)}",
             fmt(total_now), energy_unit,
-            [("Scenario", base_scenario, SCENARIO_COLORS.get(base_scenario, "#00A6FB")),
-             (f"{horizon}", fmt(total_horizon), "#E2E8F0"),
-             ("Change", f"{total_change:+.1f}%", "#10B981" if total_change >= 0 else "#EF4444")],
+            [(f"By {horizon}", fmt(total_horizon), "#E2E8F0"),
+             ("Change", f"{total_change:+.1f}%", "#10B981" if total_change >= 0 else "#EF4444"),
+             ("Scenario", base_scenario, SCENARIO_COLORS.get(base_scenario, "#00A6FB"))],
             accent="#00A6FB", icon_name="primary_energy",
-            badge=f"{horizon} {base_scenario}", badge_colour="#00A6FB",
+            badge=f"{base_scenario} case to {horizon}", badge_colour="#00A6FB",
         ),
         _kpi_card(
-            "K2", f"Grid electricity demand, {grid.get('year', HISTORY_END)}",
+            "K2", f"Electricity demand, {grid.get('year', HISTORY_END)}",
             fmt(grid_now), elec_unit,
-            [("Scenario", base_scenario, SCENARIO_COLORS.get(base_scenario, "#00A6FB")),
-             (f"{horizon}", fmt(grid_horizon), "#E2E8F0"),
-             ("Change", f"{grid_change:+.1f}%", "#10B981" if grid_change >= 0 else "#EF4444")],
+            [(f"By {horizon}", fmt(grid_horizon), "#E2E8F0"),
+             ("Change", f"{grid_change:+.1f}%", "#10B981" if grid_change >= 0 else "#EF4444"),
+             ("Scenario", base_scenario, SCENARIO_COLORS.get(base_scenario, "#00A6FB"))],
             accent="#10B981", icon_name="generation",
-            badge=f"{_num(grid.get('growth_pct')):+.1f}%/yr", badge_colour="#10B981",
+            badge=f"grows {_num(grid.get('growth_pct')):+.1f}% a year",
+            badge_colour="#10B981",
         ),
         _kpi_card(
-            "K3", "Demand growth: reported vs forecast",
-            f"{_num(cagr.get('forecast_cagr_pct')):+.2f}", "% per year",
-            [("Reported CAGR", f"{_num(cagr.get('observed_cagr_pct')):+.2f}%/yr", "#94A3B8"),
-             ("Window", f"{int(_num(cagr.get('calib_start')))}–{int(_num(cagr.get('calib_end')))}", "#94A3B8"),
-             ("Basis", str(model_choice), "#A78BFA")],
+            "K3", "How fast demand grows",
+            f"{_num(cagr.get('forecast_cagr_pct')):+.2f}", "% a year",
+            [("Seen in the data", f"{_num(cagr.get('observed_cagr_pct')):+.2f}% a year", "#94A3B8"),
+             ("Fitted on", f"{int(_num(cagr.get('calib_start')))}–{int(_num(cagr.get('calib_end')))}", "#94A3B8"),
+             ("Years ahead", f"{_num(cagr.get('forecast_years')):.0f}", "#E2E8F0")],
             accent="#A78BFA", icon_name="scenario",
-            badge=f"{_num(cagr.get('forecast_years')):.0f} yrs", badge_colour="#A78BFA",
-        ),
-        _kpi_card(
-            "K4", "Income elasticity of demand",
-            f"{_num(elasticity.get('elasticity_income')):.2f}", "ε (per-capita)",
-            [("ε vs total GDP", f"{_num(elasticity.get('elasticity_gdp')):.2f}", "#E2E8F0"),
-             ("Fit R²", f"{_num(elasticity.get('r2_per_capita')):.3f}", "#E2E8F0"),
-             ("Drivers", "GDP + population", "#94A3B8")],
-            accent="#F472B6", icon_name="insights",
-            badge="objective 3", badge_colour="#F472B6",
-        ),
-        _kpi_card(
-            "K5", f"Supply–demand gap, {horizon}",
-            f"{_num(gap.get('gap_pct')):+.1f}", "% of primary supply",
-            [("Gap", f"{fmt(_num(gap.get('gap')) * e_factor)} {energy_unit}", "#EF4444"),
-             ("Supply CAGR", f"{_num(gap.get('supply_cagr_pct')):+.2f}%/yr", "#94A3B8"),
-             ("Needed", f"{_num(gap.get('required_supply_cagr_pct')):+.2f}%/yr", "#F59E0B")],
-            accent="#F59E0B", icon_name="warning",
-            badge=f"gas imports {_num(imports.get('gas_import_dep_pct')):.0f}%",
-            badge_colour="#F59E0B",
+            badge=f"to {horizon}", badge_colour="#A78BFA",
         ),
     ]
 
-    for column, card in zip(st.columns(len(cards)), cards):
+    # The row is cut into four slots like every other dashboard's KPI strip, but
+    # only three cards go in it -- the fourth slot stays blank, so each card keeps
+    # the width a four-up row gives it instead of stretching over the space.
+    st.markdown(_CARD_CSS, unsafe_allow_html=True)
+    for column, card in zip(st.columns(4), cards):
         column.markdown(card, unsafe_allow_html=True)
 
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
-    # Visual 1: Reported Demand
+    # --- Visual 1: what demand has actually done ---
     st.markdown(
-        section_title("V1 — Reported demand, 1999–2024", "chart",
-                      badge=f"{energy_unit} · objective 1"),
+        section_title("Visual 1 – Demand so far", "chart",
+                      badge=f"{VIEW_START}–{HISTORY_END} · {energy_unit}"),
         unsafe_allow_html=True)
-    st.caption(f"Historical trajectory and indexed growth of total final energy ({energy_unit}), electricity, and natural gas consumption (1999–2024).")
+    st.caption(f"How much energy the country has used each year — all energy, electricity and gas — and how each one has grown since {VIEW_START}.")
     st.plotly_chart(
         visual1_history_trends(hist, HISTORY_SERIES_FOR_CHARTS, (VIEW_START, HISTORY_END),
                                unit_energy=energy_unit, break_year=total_break,
                                factor=e_factor),
         use_container_width=True, config=_CHART_CONFIG)
 
-    # Visual 2: Scenario Fans
+    # --- Visual 2: the forecast itself ---
     st.markdown(
-        section_title(f"V2 — {horizon} scenarios: Low / Base / High", "scenario",
-                      badge=f"2025–{horizon} · GDP {base_gdp:.1f}% ± {spread:.2f}pp · "
-                            f"objective 2"),
+        section_title(f"Visual 2 – Three ways demand can go", "scenario",
+                      badge=f"{HISTORY_END + 1}–{horizon} · {', '.join(scenarios)}"),
         unsafe_allow_html=True)
-    st.caption(f"Demand fan forecasts (2025–{horizon}) across Low, Base, and High macro-scenarios with confidence envelopes for final energy, electricity, and gas.")
+    st.caption(f"Where demand has been, and the three paths it can take to {horizon}: a slow-growing economy, the planned one, and a fast-growing one. Dashed lines are the model's guess, not a measurement.")
     st.plotly_chart(
         visual2_scenario_fans(data["bands"], hist, HISTORY_SERIES_FOR_CHARTS,
                               scenarios, unit_energy=energy_unit, factor=e_factor,
                               break_year=HISTORY_END),
         use_container_width=True, config=_CHART_CONFIG)
 
-    # Visual 3: Demand Drivers
+    # --- Visual 3: why the forecast moves ---
     st.markdown(
-        section_title("V3 — Demand drivers: GDP, GDP growth and population",
-                      "insights", badge=f"calibrated {calib_start}–{HISTORY_END} · objective 3"),
+        section_title("Visual 3 – What moves demand", "insights",
+                      badge=f"fitted {DEFAULT_CALIB_START}–{HISTORY_END}"),
         unsafe_allow_html=True)
-    st.caption(f"Econometric relationship between energy demand and core drivers: real GDP per capita, population expansion, and log-log elasticity fits.")
+    st.caption("Demand next to the two things that push it up: how much the economy makes, and how many people there are. The dots on the right show that when income per head rises, energy per head rises with it.")
     st.plotly_chart(
         visual3_drivers(hist, models.get("total_final", {}), "total_final",
                         (VIEW_START, HISTORY_END), unit_energy=energy_unit,
                         factor=e_factor),
         use_container_width=True, config=_CHART_CONFIG)
 
-    # Visual 4: Driver Decomposition
-    st.markdown(
-        section_title("V4 — What drives the growth: income, population or intensity",
-                      "chart", badge=f"total final energy · objective 3"),
-        unsafe_allow_html=True)
-    st.caption("Year-by-year decomposition of demand growth into income effect (per-capita GDP), demographic growth (population), and structural energy intensity shifts.")
-    st.plotly_chart(
-        visual4_decomposition(data["decomposition"].get("total_final"),
-                              series_spec("total_final")["short"]),
-        use_container_width=True, config=_CHART_CONFIG)
-
-    # Visual 5: Sector and Province Mix
-    st.markdown(
-        section_title("V5 — Who consumes: end-use sector and province", "demand",
-                      badge=f"{elec_unit} · reported vs {horizon} {base_scenario} · objective 4"),
-        unsafe_allow_html=True)
-    st.caption(f"Electricity consumption distribution ({elec_unit}) across economic sectors (Domestic, Industrial, Commercial, Agriculture) and provincial share paths to {horizon}.")
-    sector_col, province_col = st.columns(2)
-    with sector_col:
-        st.plotly_chart(
-            visual5_sector_mix(data["sectors"], horizon, unit_elec=elec_unit,
-                               factor=g_factor, scenario=base_scenario),
-            use_container_width=True, config=_CHART_CONFIG)
-    with province_col:
-        st.plotly_chart(
-            visual5_province_mix(data["provinces"], horizon, scenario=base_scenario),
-            use_container_width=True, config=_CHART_CONFIG)
-
-    # Visual 6: Supply Gap & Import Dependency
-    st.markdown(
-        section_title("V6 — Supply against demand, and import dependency", "supply",
-                      badge=f"{energy_unit} · to {horizon} · objective 5"),
-        unsafe_allow_html=True)
-    st.caption(f"Projected supply-demand gap ({energy_unit}) and rising fuel import dependency to {horizon} if indigenous supply expansion remains constrained.")
-    gap_col, import_col = st.columns(2)
-    with gap_col:
-        st.plotly_chart(
-            visual6_gap(data["gap"].get("total"), unit_energy=energy_unit,
-                        factor=e_factor, base_scenario=base_scenario),
-            use_container_width=True, config=_CHART_CONFIG)
-    with import_col:
-        st.plotly_chart(
-            visual6_imports(data["gap"].get("imports"), horizon),
-            use_container_width=True, config=_CHART_CONFIG)
-
-    # Visual 7: Forecast Reliability
+    # --- Visuals 4 and 5: who uses it, and how far to trust the guess ---
     tests = data["backtest"]
     metrics = tests.get("metrics")
-    predictions = tests.get("predictions")
     train_end = int(tests.get("train_end", HISTORY_END - 4))
 
-    st.markdown(
-        section_title("V7 — Forecast reliability: backtest", "intensity",
-                      badge=f"hold-out {train_end + 1}–{HISTORY_END} · MAPE / RMSE / R² · "
-                            f"objective 6"),
-        unsafe_allow_html=True)
-    st.caption("Hold-out out-of-sample backtesting validation comparing Driver vs Trend models with MAPE, RMSE, and trajectory tracking.")
-    reliability_col, path_col = st.columns(2)
-
-    with reliability_col:
+    use_col, trust_col = st.columns(2)
+    with use_col:
+        st.markdown(
+            section_title("Visual 4 – Who uses the electricity", "demand",
+                          badge=f"{elec_unit} · {base_scenario} to {horizon}"),
+            unsafe_allow_html=True)
+        st.caption(f"Electricity used by each sector in the last measured year, and what the same sectors use in {horizon}.")
         st.plotly_chart(
-            visual7_backtest_mape(metrics, train_end, HISTORY_END),
+            visual4_sector_mix(data["sectors"], horizon, unit_elec=elec_unit,
+                               factor=g_factor, scenario=base_scenario),
             use_container_width=True, config=_CHART_CONFIG)
 
-    with path_col:
-        options = {}
-        if predictions is not None and not predictions.empty:
-            for _, row in predictions.drop_duplicates("series").iterrows():
-                options[str(row["label"])] = str(row["series"])
-        if options:
-            chosen_label = st.selectbox("Series to inspect", list(options.keys()),
-                                        key="q4_backtest_series")
-            chosen_key = options[chosen_label]
-            spec = series_spec(chosen_key)
-            chart_factor = e_factor if spec["domain"] == "energy" else g_factor
-            chart_unit = energy_unit if spec["domain"] == "energy" else elec_unit
-            st.plotly_chart(
-                visual7_backtest_path(predictions, chosen_key, unit=chart_unit,
-                                      factor=chart_factor, label=spec["short"]),
-                use_container_width=True, config=_CHART_CONFIG)
-        else:
-            st.plotly_chart(visual7_backtest_path(predictions or pd.DataFrame(),
-                                                  "total_final", unit=energy_unit,
-                                                  factor=e_factor),
-                            use_container_width=True, config=_CHART_CONFIG)
+    with trust_col:
+        st.markdown(
+            section_title("Visual 5 – How far to trust the forecast", "intensity",
+                          badge=f"tested on {train_end + 1}–{HISTORY_END}"),
+            unsafe_allow_html=True)
+        st.caption("The models were asked to predict the last four years without having seen them. Each bar is how far off that guess was on average — a shorter bar is a better forecast.")
+        st.plotly_chart(
+            visual5_reliability(metrics, train_end, HISTORY_END),
+            use_container_width=True, config=_CHART_CONFIG)
 
-    # Reliability Table
-    # Only MAPE and RMSE are read from the four-year hold-out; R² is taken from
-    # the calibration fit, where it means something.
-    if metrics is not None and not metrics.empty:
-        hold_out = metrics[metrics["window"] == "hold-out"].set_index(["series", "model"])
-        in_sample = metrics[metrics["window"] == "in-sample"].set_index(["series", "model"])
-        best_per_series = (metrics[metrics["window"] == "hold-out"]
-                           .groupby("series")["mape"].min().to_dict())
-        rows = []
-        for (series_key, model_name), row in hold_out.iterrows():
-            fit = in_sample.loc[(series_key, model_name)] \
-                if (series_key, model_name) in in_sample.index else None
-            is_best = abs(row["mape"] - best_per_series.get(series_key, float("nan"))) < 1e-9
-            rows.append({
-                "Series": series_spec(series_key)["short"],
-                "Model": model_name,
-                "Hold-out MAPE %": round(float(row["mape"]), 2),
-                "Hold-out RMSE": round(float(row["rmse"])),
-                "Bias %": round(float(row["bias"]), 1),
-                "Calibration R²": round(float(fit["r2"]), 3) if fit is not None else None,
-                "Better model": "◀ lower error" if is_best else "",
-            })
-        table = (pd.DataFrame(rows)
-                 .sort_values(["Series", "Hold-out MAPE %"])
-                 .reset_index(drop=True))
-        st.dataframe(table, use_container_width=True, hide_index=True)
-
-    # ── footer ─────────────────────────────────────────────────────────────
-    worst_mape = float("nan")
-    best_model = "—"
-    if metrics is not None and not metrics.empty:
-        hold_out = metrics[metrics["window"] == "hold-out"]
-        if not hold_out.empty:
-            row = hold_out.loc[hold_out["mape"].idxmin()]
-            worst_mape = float(row["mape"])
-            best_model = f"{row['label']} · {row['model']}"
+    # ---- Bottom line ----
+    line1 = (f"In the {base_scenario} case, total energy demand grows "
+             f"{total_change:+.1f}% to {fmt(total_horizon)} {energy_unit} by "
+             f"{horizon}.")
+    line2 = (f"Electricity demand moves {grid_change:+.1f}% to "
+             f"{fmt(grid_horizon)} {elec_unit} — new plants should be planned "
+             "around that bigger number.")
+    st.markdown(conclusion_card([line1, line2]), unsafe_allow_html=True)

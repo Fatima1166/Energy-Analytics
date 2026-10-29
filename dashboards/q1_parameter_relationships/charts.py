@@ -1,16 +1,14 @@
 """
 dashboards/q1_parameter_relationships/charts.py -- visuals for Question 1
-(energy-parameter relationships + what-if predicted values).
+(the relationships among energy parameters over a chosen period).
 
 Simple chart types, one per analytical job:
 V1  Correlation heat-map        -- parameter x parameter Pearson r
 V2  Pair scatter + OLS trend    -- two parameters, fitted line + R² note
 V3  Rolling correlation line    -- stability of one pair across sliding windows
-V4  History + baseline + what-if-- bars (reported) continued by two forecast lines
-V5  What-if impact bars         -- diverging % change vs baseline per parameter
-V6  Driver elasticity bars      -- grouped β_GDP / β_Pop per parameter
 V7  Top relationship ranking      -- lollipop of the strongest |r| pairs
 V8  Correlation distribution      -- histogram of every pairwise r
+V9  What-if forecast path         -- history + baseline + what-if to the horizon
 
 Presentation-only ("dumb"): the core/parameter_relationships.py engine
 pre-computes every value; these functions only draw.
@@ -86,9 +84,11 @@ def visual1_corr_heatmap(corr: pd.DataFrame, labels: list) -> go.Figure:
     ))
     fig.update_layout(
         template="plotly_dark", paper_bgcolor=_PAPER, plot_bgcolor=_PLOT,
-        height=560, margin=dict(l=190, r=24, t=30, b=150),
-        xaxis=dict(tickfont=dict(size=9.5, color=_TEXT), tickangle=-45),
-        yaxis=dict(tickfont=dict(size=9.5, color=_TEXT), autorange="reversed"),
+        height=560, margin=dict(l=190, r=24, t=56, b=170),
+        xaxis=dict(title=dict(text="Parameter", font=dict(size=11.5, color=_TEXT)),
+                   tickfont=dict(size=9.5, color=_TEXT), tickangle=-45),
+        yaxis=dict(title=dict(text="Parameter", font=dict(size=11.5, color=_TEXT)),
+                   tickfont=dict(size=9.5, color=_TEXT), autorange="reversed"),
     )
     return fig
 
@@ -153,7 +153,7 @@ def visual3_rolling_corr(roll: pd.DataFrame, pair_label: str,
     """One line: the pair's correlation recomputed on each sliding window."""
     fig = go.Figure()
     if roll is None or roll.empty:
-        return _empty(fig, "Rolling window needs more history", height=360,
+        return _empty(fig, "Rolling window needs more history", height=400,
                       y_title="Pearson r", x_title="Window end year")
     fig.add_trace(go.Scatter(
         x=roll["year"], y=roll["r"], mode="lines+markers",
@@ -161,6 +161,7 @@ def visual3_rolling_corr(roll: pd.DataFrame, pair_label: str,
         line=dict(color="#14B8A6", width=2.8), marker=dict(size=6),
         fill="tozeroy", fillcolor="rgba(20,184,166,0.12)",
         hovertemplate="%{x}: r = %{y:.2f}<extra></extra>",
+        connectgaps=False,
     ))
     fig.add_hline(y=0, line=dict(color="rgba(255,255,255,0.35)", width=1, dash="dot"))
     for lvl, col in ((0.7, "rgba(16,185,129,0.55)"), (-0.7, "rgba(239,68,68,0.55)")):
@@ -169,116 +170,8 @@ def visual3_rolling_corr(roll: pd.DataFrame, pair_label: str,
                       annotation_position="top right",
                       annotation_font_size=9, annotation_font_color=_TICK)
     fig.update_yaxes(range=[-1.05, 1.05])
-    _dark_theme(fig, height=360,
+    _dark_theme(fig, height=400,
                 y_title=f"Pearson r ({pair_label})", x_title="Window end year")
-    return fig
-
-
-# ═══════════════════ V4 -- history + baseline + what-if ══════════════════════
-
-def visual4_forecast_path(path: pd.DataFrame, label: str, unit: str,
-                          factor: float = 1.0, boundary_year: Optional[int] = None
-                          ) -> go.Figure:
-    """Reported history as bars; baseline and what-if projections as lines from
-    the last reported year to the horizon."""
-    fig = go.Figure()
-    if path is None or path.empty:
-        return _empty(fig, f"No forecast for {label}", height=400,
-                      y_title=f"{label} ({unit})", x_title="Year")
-
-    colors = {"History": "#00A6FB", "Baseline": "#10B981", "What-if": "#F59E0B"}
-    dashes = {"History": None, "Baseline": "solid", "What-if": "dash"}
-    for series in ("History", "Baseline", "What-if"):
-        d = path[path["series"] == series]
-        if d.empty:
-            continue
-        vals = d["value"] * factor
-        if series == "History":
-            fig.add_trace(go.Bar(
-                x=d["year"], y=vals, name="Reported",
-                marker=dict(color="rgba(0,166,251,0.55)",
-                            line=dict(color="#00A6FB", width=1)),
-                hovertemplate="%{x}: %{y:,.1f} " + unit + "<extra>Reported</extra>",
-            ))
-        else:
-            # anchor the forecast lines onto the last history point
-            hist = path[path["series"] == "History"]
-            if not hist.empty:
-                x = np.concatenate([[hist["year"].iloc[-1]], d["year"].to_numpy()])
-                y = np.concatenate([[hist["value"].iloc[-1] * factor],
-                                    vals.to_numpy()])
-            else:
-                x, y = d["year"].to_numpy(), vals.to_numpy()
-            fig.add_trace(go.Scatter(
-                x=x, y=y, mode="lines+markers", name=series,
-                line=dict(color=colors[series], width=2.8, dash=dashes[series]),
-                marker=dict(size=5),
-                hovertemplate="%{x}: %{y:,.1f} " + unit + "<extra>" + series + "</extra>",
-            ))
-
-    if boundary_year:
-        fig.add_vline(x=boundary_year + 0.5,
-                      line=dict(color="rgba(255,255,255,0.30)", width=1.2, dash="dot"),
-                      annotation_text="Reported ◀ | ▶ Modelled",
-                      annotation_position="top",
-                      annotation_font_size=9, annotation_font_color=_TICK)
-
-    _dark_theme(fig, height=400, y_title=f"{label} ({unit})", x_title="Year")
-    return fig
-
-
-# ═══════════════════ V5 -- what-if impact (diverging bars) ═══════════════════
-
-def visual5_impact_bars(fc: pd.DataFrame, horizon: int) -> go.Figure:
-    """What-if vs baseline change at the horizon, one diverging bar per parameter."""
-    fig = go.Figure()
-    if fc is None or fc.empty:
-        return _empty(fig, "No forecast rows", height=430,
-                      x_title=f"What-if vs Baseline at {horizon} (%)",
-                      y_title="Parameter")
-    d = fc.sort_values("delta_pct")
-    colors = ["#10B981" if v >= 0 else "#EF4444" for v in d["delta_pct"]]
-    fig.add_trace(go.Bar(
-        y=d["label"], x=d["delta_pct"], orientation="h",
-        marker=dict(color=colors, line=dict(width=0)),
-        text=[f"{v:+.1f}%" for v in d["delta_pct"]],
-        textposition="outside",
-        textfont=dict(size=10, family="JetBrains Mono, monospace", color="#E2E8F0"),
-        customdata=np.stack([d["baseline_value"], d["whatif_value"]], axis=-1),
-        hovertemplate="<b>%{y}</b><br>Δ: %{x:+.1f}%<br>"
-                      "Baseline: %{customdata[0]:,.1f} · What-if: %{customdata[1]:,.1f}"
-                      "<extra></extra>",
-        showlegend=False,
-    ))
-    fig.add_vline(x=0, line=dict(color="rgba(255,255,255,0.35)", width=1.2))
-    _dark_theme(fig, height=430,
-                x_title=f"What-if vs Baseline at {horizon} (%)", y_title="Parameter")
-    fig.update_yaxes(tickfont=dict(size=10, color="#CBD5E1"))
-    return fig
-
-
-# ═══════════════════ V6 -- driver elasticities (grouped bars) ════════════════
-
-def visual6_elasticity_bars(fc: pd.DataFrame) -> go.Figure:
-    """Fitted d ln(param)/d ln(driver) for GDP and population, per parameter."""
-    fig = go.Figure()
-    if fc is None or fc.empty:
-        return _empty(fig, "No elasticity fits available", height=430,
-                      y_title="Elasticity (β)", x_title="Parameter")
-    d = fc.sort_values("b_gdp", ascending=False)
-    fig.add_trace(go.Bar(
-        x=d["label"], y=d["b_gdp"], name="β vs GDP",
-        marker=dict(color="#F59E0B", line=dict(width=0)),
-        hovertemplate="%{x} β(GDP): %{y:.2f}<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        x=d["label"], y=d["b_pop"], name="β vs Population",
-        marker=dict(color="#22D3EE", line=dict(width=0)),
-        hovertemplate="%{x} β(Pop): %{y:.2f}<extra></extra>",
-    ))
-    fig.update_layout(barmode="group")
-    _dark_theme(fig, height=430, y_title="Elasticity (β)", x_title="Parameter")
-    fig.update_xaxes(tickangle=-35, tickfont=dict(size=9.5, color="#CBD5E1"))
     return fig
 
 
@@ -323,7 +216,7 @@ def visual8_corr_distribution(pairs: pd.DataFrame) -> go.Figure:
     positive links in emerald and inverse links in red."""
     fig = go.Figure()
     if pairs is None or pairs.empty:
-        return _empty(fig, "No computable pairs in this period", height=380,
+        return _empty(fig, "No computable pairs in this period", height=430,
                       y_title="Number of Parameter Pairs", x_title="Pearson r")
 
     pos = pairs[pairs["r"] >= 0]["r"]
@@ -346,7 +239,51 @@ def visual8_corr_distribution(pairs: pd.DataFrame) -> go.Figure:
                       annotation_position="top",
                       annotation_font_size=9, annotation_font_color=_TICK)
 
-    _dark_theme(fig, height=380, y_title="Number of Parameter Pairs",
+    _dark_theme(fig, height=430, y_title="Number of Parameter Pairs",
                 x_title="Pearson r (0.1-wide bins)")
     fig.update_layout(barmode="overlay", bargap=0.06)
+    return fig
+
+
+# ═══════════════ V9 -- what-if forecast path ═════════════════════════
+
+_SERIES_STYLE = {
+    "History":  dict(color="#00A6FB", width=2.6, dash="solid"),
+    "Baseline": dict(color="#8B95A7", width=2.2, dash="dot"),
+    "What-if":  dict(color="#10B981", width=2.4, dash="dash"),
+}
+
+
+def visual9_forecast_path(path: pd.DataFrame, label: str, unit: str,
+                          horizon: int) -> go.Figure:
+    """One parameter: recorded history, then the baseline trend and the
+    what-if path carried to the horizon year.  Presentation only -- the
+    engine's forecast_path() supplies every point."""
+    fig = go.Figure()
+    if path is None or path.empty or "series" not in path.columns:
+        return _empty(fig, "No forecast available for this parameter",
+                      height=400, y_title=f"{label} ({unit})", x_title="Year")
+
+    for series in ("History", "Baseline", "What-if"):
+        s = path[path["series"] == series]
+        if s.empty:
+            continue
+        style = _SERIES_STYLE[series]
+        fig.add_trace(go.Scatter(
+            x=s["year"], y=s["value"], mode="lines",
+            name=series, line=dict(width=style["width"], dash=style["dash"],
+                                   color=style["color"]),
+            hovertemplate=f"{series} %{{y:,.0f}} {unit} · %{{x}}<extra></extra>",
+        ))
+
+    hist_years = path.loc[path["series"] == "History", "year"]
+    if not hist_years.empty:
+        fig.add_vline(x=float(hist_years.max()) + 0.5,
+                      line=dict(color="rgba(255,255,255,0.30)", width=1.2,
+                                dash="dot"),
+                      annotation_text="forecast →", annotation_position="top right",
+                      annotation_font_size=9, annotation_font_color=_TICK)
+
+    _dark_theme(fig, height=400, y_title=f"{label} ({unit})",
+                x_title=f"Year (what-if carried to {horizon})")
     return fig

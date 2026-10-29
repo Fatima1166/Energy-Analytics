@@ -11,7 +11,6 @@ SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
-
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
@@ -397,6 +396,53 @@ INSERT INTO `dim_sector` (`sector_id`, `sector_name`) VALUES
 (6, 'Traction'),
 (12, 'Transport');
 
+--
+-- ADDED: two sector categories that the Economic Survey reports but the old list could not hold
+--  16 = Fertilizer (Total)  -> survey gives one fertilizer figure (feedstock + fuel are not split)
+--  17 = General Services    -> electricity category introduced with K-Electric MYT (2019)
+--
+INSERT INTO `dim_sector` (`sector_id`, `sector_name`) VALUES
+(16, 'Fertilizer (Total)'),
+(17, 'General Services');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `dim_target`
+--
+
+CREATE TABLE `dim_target` (
+  `metric` varchar(40) NOT NULL,
+  `metric_label` varchar(60) NOT NULL,
+  `target_value` decimal(9,2) NOT NULL,
+  `best_year` varchar(12) DEFAULT NULL,
+  `direction` varchar(12) NOT NULL DEFAULT 'lower',
+  `unit` varchar(12) NOT NULL DEFAULT '%',
+  `source` varchar(60) NOT NULL,
+  `notes` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `dim_target`
+--
+
+--
+-- Benchmarks for the Question 3 bottleneck analysis, read by core/targets.py
+-- (load_targets overlays the official renewable-share policy value on top).
+-- Five are the best value the metric reached in the reported record -- losses
+-- 2019-20, T&D 2018-19, imports 2018, gas self-sufficiency 2013-14, capacity
+-- utilisation 2006-07 -- derived from the fact tables already in this dump;
+-- the renewable-share target is the official Alternative Energy Policy 2019 goal.
+--
+
+INSERT INTO `dim_target` (`metric`, `metric_label`, `target_value`, `best_year`, `direction`, `unit`, `source`, `notes`) VALUES
+('losses_pct', 'Energy Losses % of Supply', 28.23, '2019-20', 'lower', '%', 'Historical best (2019-20)', 'Transformation & distribution losses as % of primary supply'),
+('td_losses_pct', 'T&D Losses %', 1.66, '2018-19', 'lower', '%', 'Historical best (2018-19)', 'Transmission & distribution losses as % of supply'),
+('import_pct', 'Import Dependence %', 10.77, '2018', 'lower', '%', 'Historical best (2018)', 'LNG + imported electricity as % of primary supply'),
+('gas_self_suff_pct', 'Gas Self-Sufficiency %', 122.37, '2013-14', 'higher', '%', 'Historical best (2013-14)', 'Domestic gas production as % of gas consumption'),
+('re_share_pct', 'Renewable Share %', 30.00, NULL, 'higher', '%', 'ARE Policy 2019 (official)', '30% renewable share target by 2030'),
+('capacity_util_pct', 'Power Capacity Utilisation %', 57.83, '2006-07', 'higher', '%', 'Historical best (2006-07)', 'Generation as % of installed-capacity potential');
+
 -- --------------------------------------------------------
 
 --
@@ -712,6 +758,12 @@ INSERT INTO `dim_year` (`year_id`, `fiscal_year`, `calendar_year`) VALUES
 (25, '2023-24', 2023),
 (26, '2024-25', 2024);
 
+--
+-- ADDED: fiscal year 2025-26 (year_id 27) so 2025 data can be stored
+--
+INSERT INTO `dim_year` (`year_id`, `fiscal_year`, `calendar_year`) VALUES
+(27, '2025-26', 2025);
+
 -- --------------------------------------------------------
 
 --
@@ -757,6 +809,13 @@ INSERT INTO `fact_co2_emissions` (`co2_id`, `country_id`, `calendar_year`, `co2_
 (23, 175, 2022, 211969710.00, '2026-09-30 03:58:35', '2026-09-30 03:58:35'),
 (24, 175, 2023, 186860880.00, '2026-09-30 03:58:35', '2026-09-30 03:58:35'),
 (25, 175, 2024, 179800380.00, '2026-09-30 03:58:35', '2026-09-30 03:58:35');
+
+--
+-- ADDED: Pakistan CO2 for 1999 (country_id 175) from owid-co2-data.csv: 99.389328 Mt = 99,389,328 t.
+-- (All 2000-2024 values already in this table match the same OWID file exactly. OWID has no 2025 value yet.)
+--
+INSERT INTO `fact_co2_emissions` (`co2_id`, `country_id`, `calendar_year`, `co2_emissions_t`) VALUES
+(26, 175, 1999, 99389328.00);
 
 -- --------------------------------------------------------
 
@@ -883,6 +942,21 @@ INSERT INTO `fact_economic_indicators` (`economic_id`, `year_id`, `calendar_year
 (24, 25, 2023, 336686348609.27, -0.4149, 247504495, 186860880.00, '2026-09-29 06:36:33', '2026-09-29 06:36:33'),
 (25, 26, 2024, 371747087751.31, 3.0818, 251269164, 179800380.00, '2026-09-29 06:36:33', '2026-09-29 06:36:33');
 
+--
+-- ADDED: 2025 (year_id 27). GDP 408.16 bn USD and growth 3.2 % from IMF export (NGDPD, NGDP_RPCH); population from OWID. CO2 not available.
+--
+INSERT INTO `fact_economic_indicators` (`economic_id`, `year_id`, `calendar_year`, `gdp_current_usd`, `gdp_growth_pct`, `population`, `co2_emissions_tonnes`) VALUES
+(27, 27, 2025, 408160000000.00, 3.2000, 255219560, NULL);
+
+--
+-- ADDED: missing year 1999-2000 (year_id 1) for `fact_economic_indicators`
+-- Sources: GDP (current USD) and real GDP growth = IMF DataMapper export (NGDPD, NGDP_RPCH, 1999: 96.008 bn USD, 4.2 %);
+--          population = OWID energy dataset (Pakistan, 1999: 150,565,381).
+-- Note: IMF growth is rounded to 1 decimal; CO2 (99,389,328 t) is from owid-co2-data.csv, same as fact_co2_emissions.
+--
+INSERT INTO `fact_economic_indicators` (`economic_id`, `year_id`, `calendar_year`, `gdp_current_usd`, `gdp_growth_pct`, `population`, `co2_emissions_tonnes`) VALUES
+(26, 1, 1999, 96008000000.00, 4.2000, 150565381, 99389328.00);
+
 -- --------------------------------------------------------
 
 --
@@ -927,6 +1001,24 @@ INSERT INTO `fact_elec_generation` (`generation_id`, `year_id`, `installed_capac
 (37, 23, 39772.00, 154056.18, 514.36, 133665.45, '2026-09-29 06:58:14', '2026-09-29 06:58:14'),
 (38, 24, 43835.00, 138539.00, 478.62, 121863.30, '2026-09-29 06:58:14', '2026-09-29 06:58:14'),
 (39, 25, 45940.00, 137196.07, 377.58, 118245.92, '2026-09-29 06:58:14', '2026-09-29 06:58:14');
+
+--
+-- ADDED: 2024-25 (year_id 26) for `fact_elec_generation`.
+-- Source: Pakistan Economic Survey 2025-26, Tables 14.1-14.2 (full year 2024-25): installed capacity 45,380 MW, generation 140,875 GWh,
+-- imports 454 GWh, consumption 113,140 GWh. Note: earlier rows (2019-20 .. 2023-24) come from a different source and differ slightly from the survey.
+--
+INSERT INTO `fact_elec_generation` (`generation_id`, `year_id`, `installed_capacity_mw`, `generation_gwh`, `imports_gwh`, `consumption_gwh`) VALUES
+(40, 26, 45380.00, 140875.00, 454.00, 113140.00);
+
+--
+-- ADDED: missing years 1999-2000, 2000-01, 2001-02 (year_id 1-3) for `fact_elec_generation`
+-- Source: Pakistan Economic Survey 2007-08, Table 14.2 (installed capacity, generation) and Table 14.1 (total consumption), HDIP.
+-- imports_gwh left NULL: electricity imports are only reported from 2006-07 onwards.
+--
+INSERT INTO `fact_elec_generation` (`generation_id`, `year_id`, `installed_capacity_mw`, `generation_gwh`, `imports_gwh`, `consumption_gwh`) VALUES
+(41, 1, 17399.00, 65751.00, NULL, 45586.00),
+(42, 2, 17488.00, 68117.00, NULL, 48585.00),
+(43, 3, 17789.00, 72405.00, NULL, 50622.00);
 
 -- --------------------------------------------------------
 
@@ -1269,6 +1361,101 @@ INSERT INTO `fact_elec_sector_consumption` (`elec_sector_id`, `year_id`, `sector
 (319, 26, 7, 7800.00, '2026-09-29 06:58:15', '2026-09-29 06:58:15'),
 (320, 26, 8, 325.00, '2026-09-29 06:58:15', '2026-09-29 06:58:15');
 
+--
+-- REPLACED: fact_elec_sector_consumption for 2019-20 .. 2024-25 (year_id 21-26).
+-- The old values for these years were evenly spaced round numbers (e.g. Domestic 64000, 66000, 68000 ... +2000 each year,
+-- Industrial 31500, 32500 ...), i.e. estimates, and did not match official data.
+-- New values: Pakistan Economic Survey 2025-26, Table 14.1 (Source: Ministry of Energy, HDIP). 2024-25 is the full-year figure.
+-- The survey reports one combined 'Other Govt' figure (it already includes bulk supply), so Other Govt holds that combined
+-- value and Bulk Supply is set to NULL for these years. General Services is stored under the new sector 17. Traction = 0 ('-' in survey).
+--
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 55963.00 WHERE `year_id` = 21 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 7975.00 WHERE `year_id` = 21 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 25708.00 WHERE `year_id` = 21 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9757.00 WHERE `year_id` = 21 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 385.00 WHERE `year_id` = 21 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 21 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 8328.00 WHERE `year_id` = 21 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 21 AND `sector_id` = 7;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 58722.00 WHERE `year_id` = 22 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 8501.00 WHERE `year_id` = 22 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 29954.00 WHERE `year_id` = 22 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 10238.00 WHERE `year_id` = 22 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 413.00 WHERE `year_id` = 22 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 22 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 8621.00 WHERE `year_id` = 22 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 22 AND `sector_id` = 7;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 56202.00 WHERE `year_id` = 23 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 8652.00 WHERE `year_id` = 23 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 31600.00 WHERE `year_id` = 23 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 10247.00 WHERE `year_id` = 23 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 387.00 WHERE `year_id` = 23 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 23 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 3748.00 WHERE `year_id` = 23 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 23 AND `sector_id` = 7;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 54354.00 WHERE `year_id` = 24 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9005.00 WHERE `year_id` = 24 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 31138.00 WHERE `year_id` = 24 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9543.00 WHERE `year_id` = 24 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 521.00 WHERE `year_id` = 24 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 24 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9305.00 WHERE `year_id` = 24 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 24 AND `sector_id` = 7;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 54911.00 WHERE `year_id` = 25 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9195.00 WHERE `year_id` = 25 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 27830.00 WHERE `year_id` = 25 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 8578.00 WHERE `year_id` = 25 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 655.00 WHERE `year_id` = 25 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 25 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9478.00 WHERE `year_id` = 25 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 25 AND `sector_id` = 7;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 57455.00 WHERE `year_id` = 26 AND `sector_id` = 1;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9721.00 WHERE `year_id` = 26 AND `sector_id` = 2;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 29181.00 WHERE `year_id` = 26 AND `sector_id` = 3;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 5882.00 WHERE `year_id` = 26 AND `sector_id` = 4;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 497.00 WHERE `year_id` = 26 AND `sector_id` = 5;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 0.00 WHERE `year_id` = 26 AND `sector_id` = 6;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = 9903.00 WHERE `year_id` = 26 AND `sector_id` = 8;
+UPDATE `fact_elec_sector_consumption` SET `consumption_gwh` = NULL WHERE `year_id` = 26 AND `sector_id` = 7;
+
+INSERT INTO `fact_elec_sector_consumption` (`elec_sector_id`, `year_id`, `sector_id`, `consumption_gwh`) VALUES
+(321, 21, 17, 256.00),
+(322, 22, 17, 368.00),
+(323, 23, 17, 427.00),
+(324, 24, 17, 433.00),
+(325, 25, 17, 463.00),
+(326, 26, 17, 501.00);
+
+--
+-- ADDED: missing years 1999-2000, 2000-01, 2001-02 (year_id 1-3) for `fact_elec_sector_consumption`
+-- Source: Pakistan Economic Survey 2007-08, Table 14.1 (electricity consumption by sector, GWh, HDIP).
+-- NOTE: HDIP reports one 'Other Govt' column for these years (it already includes bulk supply), so the combined
+--       figure is stored under sector_id 8 (Other Govt) and sector_id 7 (Bulk Supply) is not split out.
+--       Sector totals equal total consumption: 45,586 / 48,585 / 50,622 GWh.
+--
+INSERT INTO `fact_elec_sector_consumption` (`elec_sector_id`, `year_id`, `sector_id`, `consumption_gwh`) VALUES
+(327, 1, 1, 21455.00),
+(328, 1, 2, 2544.00),
+(329, 1, 3, 13202.00),
+(330, 1, 4, 4540.00),
+(331, 1, 5, 239.00),
+(332, 1, 6, 15.00),
+(333, 1, 8, 3591.00),
+(334, 2, 1, 22765.00),
+(335, 2, 2, 2774.00),
+(336, 2, 3, 14349.00),
+(337, 2, 4, 4924.00),
+(338, 2, 5, 213.00),
+(339, 2, 6, 13.00),
+(340, 2, 8, 3547.00),
+(341, 3, 1, 23210.00),
+(342, 3, 2, 2951.00),
+(343, 3, 3, 15141.00),
+(344, 3, 4, 5607.00),
+(345, 3, 5, 212.00),
+(346, 3, 6, 11.00),
+(347, 3, 8, 3490.00);
+
 -- --------------------------------------------------------
 
 --
@@ -1569,6 +1756,143 @@ INSERT INTO `fact_gas_sector_consumption` (`gas_sector_id`, `year_id`, `sector_i
 (53, 20, 14, 0.387, '2026-09-29 06:36:33', '2026-09-30 17:08:42'),
 (54, 20, 15, 53.261, '2026-09-29 06:36:33', '2026-09-30 17:08:42');
 
+--
+-- ADDED: fact_gas_sector_consumption for 2010-11 .. 2012-13 and 2019-20 .. 2024-25 (year_id 12-14 and 21-26).
+-- Source: Pakistan Economic Survey 2025-26, Table 14.1 'Gas (mm cft)' (Source: Ministry of Energy, HDIP). BCF = mm cft / 1000.
+-- Fertilizer is one total here (sector 16); the survey does not split feedstock/fuel. Blank ('-') survey cells are not inserted.
+--
+INSERT INTO `fact_gas_sector_consumption` (`gas_sector_id`, `year_id`, `sector_id`, `consumption_bcf`) VALUES
+(55, 12, 1, 232.244),
+(56, 12, 2, 36.466),
+(57, 12, 9, 291.667),
+(58, 12, 10, 337.401),
+(59, 12, 12, 113.055),
+(60, 12, 14, 1.378),
+(61, 12, 16, 228.460),
+(62, 13, 1, 261.915),
+(63, 13, 2, 39.627),
+(64, 13, 9, 296.181),
+(65, 13, 10, 358.381),
+(66, 13, 12, 119.000),
+(67, 13, 14, 1.266),
+(68, 13, 16, 211.828),
+(69, 14, 1, 291.917),
+(70, 14, 2, 40.689),
+(71, 14, 9, 284.278),
+(72, 14, 10, 362.262),
+(73, 14, 12, 100.228),
+(74, 14, 14, 0.586),
+(75, 14, 16, 188.020),
+(76, 21, 1, 325.348),
+(77, 21, 2, 26.999),
+(78, 21, 9, 225.660),
+(79, 21, 10, 424.579),
+(80, 21, 12, 46.448),
+(81, 21, 14, 0.266),
+(82, 21, 15, 26.222),
+(83, 21, 16, 248.204),
+(84, 22, 1, 312.688),
+(85, 22, 2, 27.316),
+(86, 22, 9, 262.370),
+(87, 22, 10, 434.878),
+(88, 22, 12, 53.780),
+(89, 22, 14, 0.932),
+(90, 22, 15, 56.503),
+(91, 22, 16, 314.536),
+(92, 23, 1, 309.768),
+(93, 23, 2, 24.013),
+(94, 23, 9, 233.116),
+(95, 23, 10, 385.522),
+(96, 23, 12, 21.945),
+(97, 23, 14, 1.101),
+(98, 23, 15, 47.219),
+(99, 23, 16, 319.751),
+(100, 24, 1, 312.963),
+(101, 24, 2, 21.114),
+(102, 24, 9, 193.686),
+(103, 24, 10, 387.556),
+(104, 24, 12, 23.337),
+(105, 24, 14, 1.188),
+(106, 24, 16, 285.563),
+(107, 25, 1, 300.583),
+(108, 25, 2, 16.232),
+(109, 25, 9, 172.626),
+(110, 25, 10, 388.131),
+(111, 25, 12, 22.792),
+(112, 25, 14, 0.062),
+(113, 25, 15, 35.518),
+(114, 25, 16, 271.879),
+(115, 26, 1, 269.370),
+(116, 26, 2, 13.870),
+(117, 26, 9, 177.755),
+(118, 26, 10, 367.555),
+(119, 26, 12, 19.710),
+(120, 26, 16, 280.685);
+
+--
+-- ADDED: missing years 1999-2000 .. 2006-07 (year_id 1-8) for `fact_gas_sector_consumption`
+-- Source: Pakistan Economic Survey 2007-08, Table 14.1 (gas consumption by sector, mmcft -> bcf = mmcft / 1000, HDIP).
+-- Fertilizer is one figure (feedstock + fuel not split) -> sector_id 16 'Fertilizer (Total)', same as 2010-11..2012-13.
+-- Was still missing: 2007-08, 2008-09, 2009-10 - now supplied, see PATCH 9 below.
+--
+INSERT INTO `fact_gas_sector_consumption` (`gas_sector_id`, `year_id`, `sector_id`, `consumption_bcf`) VALUES
+(121, 1, 1, 139.973),
+(122, 1, 2, 21.712),
+(123, 1, 14, 8.558),
+(124, 1, 16, 177.152),
+(125, 1, 10, 227.364),
+(126, 1, 9, 134.916),
+(127, 1, 12, 2.426),
+(128, 2, 1, 140.899),
+(129, 2, 2, 20.618),
+(130, 2, 14, 6.977),
+(131, 2, 16, 175.393),
+(132, 2, 10, 281.255),
+(133, 2, 9, 138.503),
+(134, 2, 12, 4.423),
+(135, 3, 1, 144.186),
+(136, 3, 2, 22.130),
+(137, 3, 14, 7.063),
+(138, 3, 16, 177.589),
+(139, 3, 10, 314.851),
+(140, 3, 9, 151.416),
+(141, 3, 12, 7.369),
+(142, 4, 1, 153.508),
+(143, 4, 2, 22.776),
+(144, 4, 14, 3.445),
+(145, 4, 16, 180.611),
+(146, 4, 10, 335.636),
+(147, 4, 9, 164.968),
+(148, 4, 12, 11.320),
+(149, 5, 1, 155.174),
+(150, 5, 2, 24.192),
+(151, 5, 14, 7.711),
+(152, 5, 16, 185.350),
+(153, 5, 10, 469.738),
+(154, 5, 9, 193.395),
+(155, 5, 12, 15.858),
+(156, 6, 1, 172.103),
+(157, 6, 2, 27.191),
+(158, 6, 14, 13.383),
+(159, 6, 16, 190.409),
+(160, 6, 10, 507.398),
+(161, 6, 9, 226.116),
+(162, 6, 12, 24.443),
+(163, 7, 1, 171.109),
+(164, 7, 2, 29.269),
+(165, 7, 14, 15.335),
+(166, 7, 16, 198.175),
+(167, 7, 10, 491.766),
+(168, 7, 9, 278.846),
+(169, 7, 12, 38.885),
+(170, 8, 1, 185.533),
+(171, 8, 2, 31.375),
+(172, 8, 14, 14.686),
+(173, 8, 16, 193.682),
+(174, 8, 10, 433.672),
+(175, 8, 9, 306.600),
+(176, 8, 12, 56.446);
+
 -- --------------------------------------------------------
 
 --
@@ -1637,6 +1961,20 @@ INSERT INTO `fact_natural_gas` (`gas_id`, `year_id`, `production_bcf`, `consumpt
 (18, 18, 1471.855, 1377.307, 94.548, 94.735, '2026-09-29 06:36:33', '2026-09-29 06:39:32'),
 (19, 19, 1458.936, 1454.697, 4.239, 4.553, '2026-09-29 06:36:33', '2026-09-29 06:39:32'),
 (20, 20, 1436.546, 1453.517, -16.971, -13.237, '2026-09-29 06:36:33', '2026-09-29 06:39:32');
+
+--
+-- ADDED: fact_natural_gas for 2019-20 .. 2024-25 (year_id 21-26).
+-- Production = Survey Table 14.3 (mcf = million cubic feet, /1000 = BCF); consumption = total of Table 14.1 gas; gap = production - consumption.
+-- gap_with_lng_bcf is left NULL: the LNG figures in fact_lng_imports use a different scale from the survey (see report).
+-- (Source: Pakistan Economic Survey 2025-26, Ministry of Energy / HDIP)
+--
+INSERT INTO `fact_natural_gas` (`gas_id`, `year_id`, `production_bcf`, `consumption_bcf`, `gap_bcf`, `gap_with_lng_bcf`) VALUES
+(21, 21, 1316.635, 1323.725, -7.090, NULL),
+(22, 22, 1279.243, 1463.002, -183.759, NULL),
+(23, 23, 1237.251, 1342.434, -105.183, NULL),
+(24, 24, 1189.515, 1225.407, -35.892, NULL),
+(25, 25, 1140.636, 1207.822, -67.186, NULL),
+(26, 26, 1054.812, 1128.945, -74.133, NULL);
 
 -- --------------------------------------------------------
 
@@ -1914,6 +2252,56 @@ INSERT INTO `fact_renewable_capacity` (`renewable_capacity_id`, `year_id`, `rene
 (51, 20, 'Solar', 505.00, 'Pakistan Bureau of Statistics (PBS)', '2026-09-29 06:36:33', '2026-09-29 06:36:33'),
 (52, 20, 'Bagasse', 527.00, 'Pakistan Bureau of Statistics (PBS)', '2026-09-29 06:36:33', '2026-09-29 06:36:33');
 
+--
+-- ADDED: fact_renewable_capacity.
+-- 2022-23 and 2023-24 (year_id 24, 25): NEPRA State of Industry Report 2024, section 3.2.1 (installed capacity as on 30-06-2023 / 30-06-2024).
+--   Solar = CPPA-G system + K-Electric solar (100 MW). Net-metering capacity is NOT included.
+-- 2024-25 (year_id 26): only Hydel is available (Pakistan Economic Survey 2025-26, Table 14.2: 11,561 MW). Wind/Solar/Bagasse split is not published there.
+--
+INSERT INTO `fact_renewable_capacity` (`renewable_capacity_id`, `year_id`, `renewable_source`, `installed_capacity_mw`, `source_name`) VALUES
+(53, 24, 'Hydel', 10635.00, 'NEPRA State of Industry Report 2024'),
+(54, 24, 'Wind', 1838.00, 'NEPRA State of Industry Report 2024'),
+(55, 24, 'Solar', 630.00, 'NEPRA State of Industry Report 2024'),
+(56, 24, 'Bagasse', 249.00, 'NEPRA State of Industry Report 2024'),
+(57, 25, 'Hydel', 10635.00, 'NEPRA State of Industry Report 2024'),
+(58, 25, 'Wind', 1838.00, 'NEPRA State of Industry Report 2024'),
+(59, 25, 'Solar', 780.00, 'NEPRA State of Industry Report 2024'),
+(60, 25, 'Bagasse', 249.00, 'NEPRA State of Industry Report 2024'),
+(61, 26, 'Hydel', 11561.00, 'Pakistan Economic Survey 2025-26');
+
+--
+-- ADDED: Hydel installed capacity for 1999-2000 .. 2005-06 (year_id 1-7) for `fact_renewable_capacity`
+-- Source: Pakistan Economic Survey 2007-08, Table 14.3 (hydroelectric installed capacity, MW, HDIP).
+-- Wind/Solar/Bagasse not added: the survey gives no split for these years.
+--
+INSERT INTO `fact_renewable_capacity` (`renewable_capacity_id`, `year_id`, `renewable_source`, `installed_capacity_mw`, `source_name`) VALUES
+(62, 1, 'Hydel', 4826.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(63, 2, 'Hydel', 4857.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(64, 3, 'Hydel', 5041.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(65, 4, 'Hydel', 5041.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(66, 5, 'Hydel', 6491.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(67, 6, 'Hydel', 6494.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)'),
+(68, 7, 'Hydel', 6499.00, 'Pakistan Economic Survey 2007-08, Table 14.3 (HDIP)');
+
+--
+-- ADDED: 2019-20, 2020-21, 2021-22 (year_id 21-23) for `fact_renewable_capacity`.
+-- Source: Ember yearly electricity data (release_generation_yearly_global.csv), Pakistan capacity (GW x 1000) for calendar 2019 / 2020 / 2021.
+-- NOTE: Ember is a different source than PBS/NEPRA used for the neighbouring years, so values differ slightly from that series.
+--
+INSERT INTO `fact_renewable_capacity` (`renewable_capacity_id`, `year_id`, `renewable_source`, `installed_capacity_mw`, `source_name`) VALUES
+(69, 21, 'Hydel', 9920.00, 'Ember yearly electricity data (calendar 2019)'),
+(70, 21, 'Wind', 1240.00, 'Ember yearly electricity data (calendar 2019)'),
+(71, 21, 'Solar', 750.00, 'Ember yearly electricity data (calendar 2019)'),
+(72, 21, 'Bagasse', 430.00, 'Ember yearly electricity data (calendar 2019)'),
+(73, 22, 'Hydel', 10040.00, 'Ember yearly electricity data (calendar 2020)'),
+(74, 22, 'Wind', 1240.00, 'Ember yearly electricity data (calendar 2020)'),
+(75, 22, 'Solar', 1050.00, 'Ember yearly electricity data (calendar 2020)'),
+(76, 22, 'Bagasse', 430.00, 'Ember yearly electricity data (calendar 2020)'),
+(77, 23, 'Hydel', 10040.00, 'Ember yearly electricity data (calendar 2021)'),
+(78, 23, 'Wind', 1340.00, 'Ember yearly electricity data (calendar 2021)'),
+(79, 23, 'Solar', 1430.00, 'Ember yearly electricity data (calendar 2021)'),
+(80, 23, 'Bagasse', 430.00, 'Ember yearly electricity data (calendar 2021)');
+
 -- --------------------------------------------------------
 
 --
@@ -1973,6 +2361,58 @@ INSERT INTO `fact_renewable_energy` (`renewable_energy_id`, `year_id`, `calendar
 (25, 25, 2023, 16133.72, 11350.00, 6050.00, 37900.00, NULL, 6.60, 3.52, 22.04, 172450.00, 904240.00, 26440.00, 45510.00, 22440.00, '2026-09-29 06:36:33', '2026-09-30 17:08:42'),
 (26, 26, 2024, 17525.32, 19830.00, 5160.00, 38270.00, NULL, 11.33, 2.95, 21.87, 175440.00, 888370.00, 24360.00, 43980.00, 22880.00, '2026-09-29 06:36:33', '2026-09-30 17:08:42');
 
+--
+-- ADDED: 2025 (year_id 27) from OWID energy dataset. capacity_mw (Ember shows no change vs 2024) and primary_energy_gwh
+-- (newer OWID release differs from values already stored) are left NULL.
+--
+INSERT INTO `fact_renewable_energy` (`renewable_energy_id`, `year_id`, `calendar_year`, `capacity_mw`, `gen_solar_gwh`, `gen_wind_gwh`, `gen_hydro_gwh`, `gen_other_renewables_gwh`, `share_solar_pct`, `share_wind_pct`, `share_hydro_pct`, `demand_gwh`, `primary_energy_gwh`, `gen_coal_gwh`, `gen_gas_gwh`, `gen_nuclear_gwh`) VALUES
+(53, 27, 2025, NULL, 36610.00, 5740.00, 39350.00, NULL, 18.77, 2.94, 20.18, 195510.00, NULL, 28910.00, 41050.00, 23710.00);
+
+--
+-- ADDED: `gen_other_renewables_gwh` was NULL for every year. Filled for 1999-2025.
+-- Source: OWID energy dataset (owid_energy.csv), Pakistan, other_renewables_including_bioenergy_electricity_twh x 1000.
+--
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 0.00 WHERE `calendar_year` = 1999;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 0.00 WHERE `calendar_year` = 2000;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 0.00 WHERE `calendar_year` = 2001;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 0.00 WHERE `calendar_year` = 2002;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1200.00 WHERE `calendar_year` = 2003;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1200.00 WHERE `calendar_year` = 2004;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1000.00 WHERE `calendar_year` = 2005;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1060.00 WHERE `calendar_year` = 2006;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1250.00 WHERE `calendar_year` = 2007;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1280.00 WHERE `calendar_year` = 2008;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1000.00 WHERE `calendar_year` = 2009;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 990.00 WHERE `calendar_year` = 2010;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1110.00 WHERE `calendar_year` = 2011;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1170.00 WHERE `calendar_year` = 2012;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1350.00 WHERE `calendar_year` = 2013;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1920.00 WHERE `calendar_year` = 2014;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 2150.00 WHERE `calendar_year` = 2015;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1660.00 WHERE `calendar_year` = 2016;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1700.00 WHERE `calendar_year` = 2017;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1710.00 WHERE `calendar_year` = 2018;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1710.00 WHERE `calendar_year` = 2019;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1750.00 WHERE `calendar_year` = 2020;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1850.00 WHERE `calendar_year` = 2021;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1910.00 WHERE `calendar_year` = 2022;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1770.00 WHERE `calendar_year` = 2023;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1820.00 WHERE `calendar_year` = 2024;
+UPDATE `fact_renewable_energy` SET `gen_other_renewables_gwh` = 1670.00 WHERE `calendar_year` = 2025;
+
+--
+-- ADDED: 1999 row of `fact_renewable_energy`. Source: OWID energy dataset (1999: hydro 21.50 TWh, nuclear 0.08 TWh, total generation 65.30 TWh).
+-- gen_hydro_gwh was 0.00 (placeholder) -> corrected to the OWID value; share_hydro_pct = hydro / total generation.
+-- capacity, demand, coal and gas stay NULL: OWID/Ember have no 1999 value for them.
+--
+UPDATE `fact_renewable_energy` SET `gen_hydro_gwh` = 21504.80, `gen_nuclear_gwh` = 79.55, `share_solar_pct` = 0.00, `share_wind_pct` = 0.00, `share_hydro_pct` = 32.93 WHERE `calendar_year` = 1999;
+
+--
+-- ADDED: 2025 `capacity_mw` (was NULL). Source: Ember yearly electricity data (release_generation_yearly_global.csv), Pakistan, 'Renewables' capacity.
+-- NOTE: Ember shows the same capacity for 2024 and 2025 (17.52 GW), i.e. the 2025 figure is not yet updated by Ember.
+--
+UPDATE `fact_renewable_energy` SET `capacity_mw` = 17520.00 WHERE `calendar_year` = 2025;
+
 -- --------------------------------------------------------
 
 --
@@ -2010,6 +2450,17 @@ INSERT INTO `fact_td_losses` (`td_loss_id`, `year_id`, `td_losses_gwh`, `created
 (16, 19, 21110.00, '2026-09-29 06:36:33', '2026-09-29 06:36:33'),
 (17, 20, 16765.00, '2026-09-29 06:36:33', '2026-09-29 06:36:33'),
 (35, 21, 24000.00, '2026-09-29 06:58:15', '2026-09-29 06:58:15');
+
+--
+-- ADDED: missing years 2022-23 (year_id 24) and 2023-24 (year_id 25) for `fact_td_losses`
+-- Source: Power Division Year Book 2023-24 (PPMC, DISCOs), page 25: T&D losses = Units Purchased - Units Billed (MkWh = GWh)
+--   2022-23: 116,991 - 97,338 = 19,653 GWh (16.80 %)
+--   2023-24: 115,865 - 94,683 = 21,182 GWh (18.28 %)
+-- Note: DISCO basis (excludes K-Electric); earlier years in this table may use a different basis.
+--
+INSERT INTO `fact_td_losses` (`td_loss_id`, `year_id`, `td_losses_gwh`) VALUES
+(36, 24, 19653.00),
+(37, 25, 21182.00);
 
 -- --------------------------------------------------------
 
@@ -2177,6 +2628,12 @@ ALTER TABLE `dim_province`
 ALTER TABLE `dim_sector`
   ADD PRIMARY KEY (`sector_id`),
   ADD UNIQUE KEY `uk_sector_name` (`sector_name`);
+
+--
+-- Indexes for table `dim_target`
+--
+ALTER TABLE `dim_target`
+  ADD PRIMARY KEY (`metric`);
 
 --
 -- Indexes for table `dim_unit`
@@ -2400,7 +2857,7 @@ ALTER TABLE `dim_province`
 -- AUTO_INCREMENT for table `dim_sector`
 --
 ALTER TABLE `dim_sector`
-  MODIFY `sector_id` tinyint(3) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `sector_id` tinyint(3) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `dim_unit_metadata`
@@ -2424,13 +2881,13 @@ ALTER TABLE `dim_utility`
 -- AUTO_INCREMENT for table `dim_year`
 --
 ALTER TABLE `dim_year`
-  MODIFY `year_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `year_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `fact_co2_emissions`
 --
 ALTER TABLE `fact_co2_emissions`
-  MODIFY `co2_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `co2_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `fact_consm_conn`
@@ -2448,13 +2905,13 @@ ALTER TABLE `fact_derived_ef`
 -- AUTO_INCREMENT for table `fact_economic_indicators`
 --
 ALTER TABLE `fact_economic_indicators`
-  MODIFY `economic_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `economic_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `fact_elec_generation`
 --
 ALTER TABLE `fact_elec_generation`
-  MODIFY `generation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `generation_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 
 --
 -- AUTO_INCREMENT for table `fact_elec_province_consumption`
@@ -2466,7 +2923,7 @@ ALTER TABLE `fact_elec_province_consumption`
 -- AUTO_INCREMENT for table `fact_elec_sector_consumption`
 --
 ALTER TABLE `fact_elec_sector_consumption`
-  MODIFY `elec_sector_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=321;
+  MODIFY `elec_sector_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=348;
 
 --
 -- AUTO_INCREMENT for table `fact_energy_overview`
@@ -2496,7 +2953,7 @@ ALTER TABLE `fact_gas_reserves`
 -- AUTO_INCREMENT for table `fact_gas_sector_consumption`
 --
 ALTER TABLE `fact_gas_sector_consumption`
-  MODIFY `gas_sector_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `gas_sector_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=177;
 
 --
 -- AUTO_INCREMENT for table `fact_lng_imports`
@@ -2508,7 +2965,7 @@ ALTER TABLE `fact_lng_imports`
 -- AUTO_INCREMENT for table `fact_natural_gas`
 --
 ALTER TABLE `fact_natural_gas`
-  MODIFY `gas_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `gas_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
 
 --
 -- AUTO_INCREMENT for table `fact_primary_energy_supply`
@@ -2520,19 +2977,19 @@ ALTER TABLE `fact_primary_energy_supply`
 -- AUTO_INCREMENT for table `fact_renewable_capacity`
 --
 ALTER TABLE `fact_renewable_capacity`
-  MODIFY `renewable_capacity_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
+  MODIFY `renewable_capacity_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=81;
 
 --
 -- AUTO_INCREMENT for table `fact_renewable_energy`
 --
 ALTER TABLE `fact_renewable_energy`
-  MODIFY `renewable_energy_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
+  MODIFY `renewable_energy_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `fact_td_losses`
 --
 ALTER TABLE `fact_td_losses`
-  MODIFY `td_loss_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `td_loss_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- Constraints for dumped tables
@@ -2648,6 +3105,419 @@ ALTER TABLE `fact_renewable_energy`
 --
 ALTER TABLE `fact_td_losses`
   ADD CONSTRAINT `fk_td_year` FOREIGN KEY (`year_id`) REFERENCES `dim_year` (`year_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ============================================================
+-- PATCHES 1-10 : missing values filled from the source files in
+-- this folder (2026-10-26 and 2026-10-27 passes). Each block below
+-- names the file, table and page the data was taken from.
+-- ============================================================
+
+-- PATCH 1 : dim_country.country_code for 19 non-ISO aggregate entities.
+-- Source: OWID naming convention (owid-co2-data.csv), same as rows 2/14 already in this table.
+UPDATE `dim_country` SET `country_code` = 'GCP_AFRICA'   WHERE `country_id` = 3;
+UPDATE `dim_country` SET `country_code` = 'GCP_ASIA'     WHERE `country_id` = 15;
+UPDATE `dim_country` SET `country_code` = 'ASIXCLUIND'   WHERE `country_id` = 16;
+UPDATE `dim_country` SET `country_code` = 'GCP_CENTAME'  WHERE `country_id` = 45;
+UPDATE `dim_country` SET `country_code` = 'GCP_EUROPE'   WHERE `country_id` = 76;
+UPDATE `dim_country` SET `country_code` = 'EUX27'        WHERE `country_id` = 77;
+UPDATE `dim_country` SET `country_code` = 'EUX28'        WHERE `country_id` = 78;
+UPDATE `dim_country` SET `country_code` = 'EU28'         WHERE `country_id` = 80;
+UPDATE `dim_country` SET `country_code` = 'INTAVN'       WHERE `country_id` = 106;
+UPDATE `dim_country` SET `country_code` = 'INTSHIPP'     WHERE `country_id` = 107;
+UPDATE `dim_country` SET `country_code` = 'GCP_KUWAITFIRES' WHERE `country_id` = 121;
+UPDATE `dim_country` SET `country_code` = 'GCP_MIDDEAST' WHERE `country_id` = 146;
+UPDATE `dim_country` SET `country_code` = 'GCP_NONOECD'  WHERE `country_id` = 164;
+UPDATE `dim_country` SET `country_code` = 'GCP_NORTHAME' WHERE `country_id` = 166;
+UPDATE `dim_country` SET `country_code` = 'NXUS'         WHERE `country_id` = 167;
+UPDATE `dim_country` SET `country_code` = 'GCP_OECD'     WHERE `country_id` = 171;
+UPDATE `dim_country` SET `country_code` = 'GCP_OCEANIA'  WHERE `country_id` = 173;
+UPDATE `dim_country` SET `country_code` = 'GCP_RYUKYUIS' WHERE `country_id` = 189;
+UPDATE `dim_country` SET `country_code` = 'GCP_SOUTHAME' WHERE `country_id` = 210;
+
+-- PATCH 6 : fact_renewable_capacity year_id 26-27 (FY2024-25, FY2025-26), ids 81-87.
+-- Source: Ember yearly electricity data (release_generation_yearly_global.csv), 'Capacity (GW)' x 1000. Bagasse = Ember Bioenergy.
+INSERT INTO `fact_renewable_capacity` (`renewable_capacity_id`, `year_id`, `renewable_source`, `installed_capacity_mw`, `source_name`) VALUES
+(81, 26, 'Solar', 3720.00, 'Ember yearly electricity data (calendar 2024)'),
+(82, 26, 'Wind', 1850.00, 'Ember yearly electricity data (calendar 2024)'),
+(83, 26, 'Bagasse', 430.00, 'Ember yearly electricity data (calendar 2024)'),
+(84, 27, 'Hydel', 11520.00, 'Ember yearly electricity data (calendar 2025)'),
+(85, 27, 'Solar', 3720.00, 'Ember yearly electricity data (calendar 2025)'),
+(86, 27, 'Wind', 1850.00, 'Ember yearly electricity data (calendar 2025)'),
+(87, 27, 'Bagasse', 430.00, 'Ember yearly electricity data (calendar 2025)');
+
+-- PATCH 8A : fact_td_losses year_id 21-25 (FY2019-20 .. FY2023-24), ids 35-39.
+-- Source: NEPRA State of the Industry Report 2024, Statistical TABLE 65 'Total Units Purchased, Sold and Losses' (report p.207 / PDF p.219), 'Total in CPPA-G System' line.
+INSERT INTO `fact_td_losses` (`td_loss_id`, `year_id`, `td_losses_gwh`) VALUES
+(38, 22, 21748.08),
+(39, 23, 22305.23);
+
+UPDATE `fact_td_losses` SET `td_losses_gwh` = 21568.97 WHERE `td_loss_id` = 35;
+UPDATE `fact_td_losses` SET `td_losses_gwh` = 19610.32 WHERE `td_loss_id` = 36;
+UPDATE `fact_td_losses` SET `td_losses_gwh` = 21148.51 WHERE `td_loss_id` = 37;
+
+-- PATCH 8B : fact_lng_imports year_id 4-15 (FY2002-03 .. FY2013-14) LNG = 0 (Port Qasim terminal opened Feb 2015).
+-- Source: Energy Yearbook Manipulated.xlsx Sheet2 'Primary Energy Supplies by Source (TOE)' col 'LNG Imports' (0); Sheet9 'Total imports of LNG' starts 2014-15.
+INSERT INTO `fact_lng_imports` (`lng_import_id`, `year_id`, `imports_bcf`, `imports_value_musd`) VALUES
+(6, 4, 0.000, 0.00),
+(7, 5, 0.000, 0.00),
+(8, 6, 0.000, 0.00),
+(9, 7, 0.000, 0.00),
+(10, 8, 0.000, 0.00),
+(11, 9, 0.000, 0.00),
+(12, 10, 0.000, 0.00),
+(13, 11, 0.000, 0.00),
+(14, 12, 0.000, 0.00),
+(15, 13, 0.000, 0.00),
+(16, 14, 0.000, 0.00),
+(17, 15, 0.000, 0.00);
+
+-- PATCH 8C : fact_primary_energy_supply year_id 21-24 (FY2019-20 .. FY2022-23).
+-- Source: NEPRA State of the Industry Report 2024, Statistical TABLE 1 'Primary Energy Supplies by Source (TOE)' (report p.123 / PDF p.135), the HDIP Pakistan Energy Yearbook series.
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 18188487 WHERE `supply_id` = 285;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 26658176 WHERE `supply_id` = 286;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 14711973 WHERE `supply_id` = 287;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 8016386  WHERE `supply_id` = 288;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 2581494  WHERE `supply_id` = 289;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 991041   WHERE `supply_id` = 290;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 22577047 WHERE `supply_id` = 291;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 25500568 WHERE `supply_id` = 292;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 16530528 WHERE `supply_id` = 293;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 8007673  WHERE `supply_id` = 294;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 2230835  WHERE `supply_id` = 295;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 1031857  WHERE `supply_id` = 296;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 27970739 WHERE `supply_id` = 297;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 24810015 WHERE `supply_id` = 298;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 16202444 WHERE `supply_id` = 299;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 7806686  WHERE `supply_id` = 300;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 4576563  WHERE `supply_id` = 301;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 1478685  WHERE `supply_id` = 302;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 20106167 WHERE `supply_id` = 303;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 23879362 WHERE `supply_id` = 304;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 12574353 WHERE `supply_id` = 305;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 8746313  WHERE `supply_id` = 306;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 6196042  WHERE `supply_id` = 307;
+UPDATE `fact_primary_energy_supply` SET `supply_toe` = 1393950  WHERE `supply_id` = 308;
+
+INSERT INTO `fact_primary_energy_supply` (`supply_id`, `year_id`, `source_id`, `supply_toe`, `imports_toe`, `imports_pct`, `unit`) VALUES
+(321, 21, 3, 8320497, 8320497, 10.4732, 'TOE'),
+(322, 21, 4, 1026048, NULL, NULL, 'TOE'),
+(323, 21, 8, 122625, 122625, 10.4732, 'TOE'),
+(324, 22, 3, 9920947, 9920947, 11.5355, 'TOE'),
+(325, 22, 4, 1116597, NULL, NULL, 'TOE'),
+(326, 22, 8, 118957, 118957, 11.5355, 'TOE'),
+(327, 23, 3, 9499119, 9499119, 10.2255, 'TOE'),
+(328, 23, 4, 1522345, NULL, NULL, 'TOE'),
+(329, 23, 8, 110485, 110485, 10.2255, 'TOE'),
+(330, 24, 3, 8051421, 8051421, 9.8830, 'TOE'),
+(331, 24, 4, 1561764, NULL, NULL, 'TOE'),
+(332, 24, 8, 114242, 114242, 9.8830, 'TOE');
+
+-- PATCH 8D : fact_final_energy_consumption year_id 21-24 (FY2019-20 .. FY2022-23), plus missing LPG rows.
+-- Source: NEPRA State of the Industry Report 2024, Statistical TABLE 2 'Final Energy Consumption by Source (TOE)' (report p.124 / PDF p.136), the HDIP series.
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 16364304 WHERE `consumption_id` = 171;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 15944781 WHERE `consumption_id` = 172;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 9836671  WHERE `consumption_id` = 173;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 8825770  WHERE `consumption_id` = 174;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 18569102 WHERE `consumption_id` = 175;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 18346902 WHERE `consumption_id` = 176;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 12407520 WHERE `consumption_id` = 177;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 9513502  WHERE `consumption_id` = 178;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 20224963 WHERE `consumption_id` = 179;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 16577599 WHERE `consumption_id` = 180;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 8470931  WHERE `consumption_id` = 181;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 9061238  WHERE `consumption_id` = 182;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 15967266 WHERE `consumption_id` = 183;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 14239041 WHERE `consumption_id` = 184;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 4655350  WHERE `consumption_id` = 185;
+UPDATE `fact_final_energy_consumption` SET `consumption_toe` = 9308581  WHERE `consumption_id` = 186;
+
+INSERT INTO `fact_final_energy_consumption` (`consumption_id`, `year_id`, `source_id`, `consumption_toe`) VALUES
+(195, 21, 4, 1196005),
+(196, 22, 4, 1371416),
+(197, 23, 4, 1381531),
+(198, 24, 4, 1497906);
+
+-- PATCH 9 : fact_gas_sector_consumption year_id 9-11 (FY2007-08, FY2008-09, FY2009-10), ids 177-197.
+-- Source: Pakistan Economic Survey 2011-12, Statistical Annex TABLE 14.1 'COMMERCIAL ENERGY CONSUMPTION - 2. Gas (mm cft)' (Source: HDIP); file ES_2011-12_Ch14_Energy.pdf. BCF = mm cft / 1000.
+INSERT INTO `fact_gas_sector_consumption` (`gas_sector_id`, `year_id`, `sector_id`, `consumption_bcf`) VALUES
+(177, 9, 1, 204.035),
+(178, 9, 2, 33.905),
+(179, 9, 14, 12.736),
+(180, 9, 16, 200.063),
+(181, 9, 10, 429.892),
+(182, 9, 9, 322.563),
+(183, 9, 12, 72.018),
+(184, 10, 1, 214.113),
+(185, 10, 2, 35.536),
+(186, 10, 14, 7.305),
+(187, 10, 16, 201.100),
+(188, 10, 10, 404.140),
+(189, 10, 9, 319.003),
+(190, 10, 12, 88.236),
+(191, 11, 1, 219.382),
+(192, 11, 2, 36.955),
+(193, 11, 14, 1.944),
+(194, 11, 16, 220.124),
+(195, 11, 10, 366.906),
+(196, 11, 9, 333.508),
+(197, 11, 12, 99.002);
+
+-- PATCH 10 : 2026-10-27 pass over the second set of folder files (OGRA Petroleum Industry Reports, OGRA / SNGPL / SSGC annual reports, NEPRA SOI 2018).
+
+-- PATCH 10A : fact_consm_conn year_id 18,19,21,23,24,25,26 (FY2016-17 .. FY2024-25), ids 31-135.
+-- Source: OGRA 'State of the Regulated Petroleum Industry' (Petroleum Industry Reports), section 'Customer Addition to Gas Network', table 'Number of Consumers Added/(Disconnected) during FY': 2016-17 T2.25 p.38; 2017-18 T2.27 p.43; 2019-20 T3.27 p.54; 2021-22 T3.20 p.41; 2022-23 T3.23 p.41; 2023-24 T3.25 p.39; 2024-25 adds table p.45. (Source: SNGPL & SSGCL). AJK folded into Punjab.
+INSERT INTO `fact_consm_conn` (`connection_id`, `year_id`, `utility_id`, `province_id`, `sector_id`, `consumers_added`) VALUES
+(31, 18, 1, 1, 1, 364356),
+(32, 18, 1, 1, 2, 195),
+(33, 18, 1, 1, 3, 1),
+(34, 18, 1, 3, 1, 56065),
+(35, 18, 1, 3, 2, 87),
+(36, 18, 1, 3, 3, 0),
+(37, 18, 2, 8, 1, 20198),
+(38, 18, 2, 8, 2, -187),
+(39, 18, 2, 8, 3, -3),
+(40, 18, 2, 7, 1, 39837),
+(41, 18, 2, 7, 2, -166),
+(42, 18, 2, 7, 3, 23),
+(43, 18, 2, 4, 1, 5974),
+(44, 18, 2, 4, 2, 36),
+(45, 18, 2, 4, 3, 2),
+(46, 19, 1, 1, 1, 515016),
+(47, 19, 1, 1, 2, 2407),
+(48, 19, 1, 1, 3, 109),
+(49, 19, 1, 3, 1, 87041),
+(50, 19, 1, 3, 2, 339),
+(51, 19, 1, 3, 3, 7),
+(52, 19, 2, 8, 1, 19984),
+(53, 19, 2, 8, 2, -35),
+(54, 19, 2, 8, 3, 6),
+(55, 19, 2, 7, 1, 47558),
+(56, 19, 2, 7, 2, -88),
+(57, 19, 2, 7, 3, 6),
+(58, 19, 2, 4, 1, 6469),
+(59, 19, 2, 4, 2, 54),
+(60, 19, 2, 4, 3, -1),
+(61, 21, 1, 1, 1, 230039),
+(62, 21, 1, 1, 2, 946),
+(63, 21, 1, 1, 3, 56),
+(64, 21, 1, 3, 1, 40019),
+(65, 21, 1, 3, 2, 163),
+(66, 21, 1, 3, 3, 5),
+(67, 21, 2, 8, 1, 27276),
+(68, 21, 2, 8, 2, -116),
+(69, 21, 2, 8, 3, 7),
+(70, 21, 2, 7, 1, 60838),
+(71, 21, 2, 7, 2, -215),
+(72, 21, 2, 7, 3, 77),
+(73, 21, 2, 4, 1, 7161),
+(74, 21, 2, 4, 2, -15),
+(75, 21, 2, 4, 3, -2),
+(76, 23, 1, 1, 1, 149996),
+(77, 23, 1, 1, 2, 1631),
+(78, 23, 1, 1, 3, 70),
+(79, 23, 1, 3, 1, 37134),
+(80, 23, 1, 3, 2, 182),
+(81, 23, 1, 3, 3, 7),
+(82, 23, 2, 8, 1, 22833),
+(83, 23, 2, 8, 2, -149),
+(84, 23, 2, 8, 3, -3),
+(85, 23, 2, 7, 1, 29864),
+(86, 23, 2, 7, 2, -47),
+(87, 23, 2, 7, 3, 209),
+(88, 23, 2, 4, 1, 5039),
+(89, 23, 2, 4, 2, -11),
+(90, 23, 2, 4, 3, 8),
+(91, 24, 1, 1, 1, 1),
+(92, 24, 1, 1, 2, 1896),
+(93, 24, 1, 1, 3, 37),
+(94, 24, 1, 3, 1, 6370),
+(95, 24, 1, 3, 2, 404),
+(96, 24, 1, 3, 3, 4),
+(97, 24, 2, 8, 1, -5611),
+(98, 24, 2, 8, 2, -274),
+(99, 24, 2, 8, 3, -41),
+(100, 24, 2, 7, 1, -16240),
+(101, 24, 2, 7, 2, -1015),
+(102, 24, 2, 7, 3, 62),
+(103, 24, 2, 4, 1, -5524),
+(104, 24, 2, 4, 2, 102),
+(105, 24, 2, 4, 3, -3),
+(106, 25, 1, 1, 1, 7826),
+(107, 25, 1, 1, 2, 1586),
+(108, 25, 1, 1, 3, 28),
+(109, 25, 1, 3, 1, 8341),
+(110, 25, 1, 3, 2, 360),
+(111, 25, 1, 3, 3, 11),
+(112, 25, 2, 8, 1, -6250),
+(113, 25, 2, 8, 2, -610),
+(114, 25, 2, 8, 3, -37),
+(115, 25, 2, 7, 1, -7450),
+(116, 25, 2, 7, 2, -1446),
+(117, 25, 2, 7, 3, -73),
+(118, 25, 2, 4, 1, -1142),
+(119, 25, 2, 4, 2, -111),
+(120, 25, 2, 4, 3, -2),
+(121, 26, 1, 1, 1, 10426),
+(122, 26, 1, 1, 2, 1944),
+(123, 26, 1, 1, 3, 20),
+(124, 26, 1, 3, 1, 3884),
+(125, 26, 1, 3, 2, 454),
+(126, 26, 1, 3, 3, 19),
+(127, 26, 2, 8, 1, -7902),
+(128, 26, 2, 8, 2, -639),
+(129, 26, 2, 8, 3, -43),
+(130, 26, 2, 7, 1, -15265),
+(131, 26, 2, 7, 2, -2315),
+(132, 26, 2, 7, 3, -87),
+(133, 26, 2, 4, 1, -8596),
+(134, 26, 2, 4, 2, -123),
+(135, 26, 2, 4, 3, -7);
+
+-- PATCH 10B : fact_lng_imports imports_bcf corrected for year_id 16-20 and added year_id 21-26, ids 18-23.
+-- Source: NEPRA SOI 2024 TABLE 1 'LNG Import' (TOE, report p.123); NEPRA SOI 2018 p.99; OGRA PIR 2023-24 and 2024-25 Tables 4.1/4.2 (terminal MMBtu). HDIP basis: 1 TOE = 41.868 GJ, 1 BCF = 1,055,056 GJ. imports_value_musd year_id 21-26 stay NULL (no US$ bill printed in the folder).
+UPDATE `fact_lng_imports` SET `imports_bcf` =  18.750 WHERE `lng_import_id` = 1;  -- FY2014-15,  472,503 TOE
+UPDATE `fact_lng_imports` SET `imports_bcf` =  95.400 WHERE `lng_import_id` = 2;  -- FY2015-16, 2,404,128 TOE
+UPDATE `fact_lng_imports` SET `imports_bcf` = 176.811 WHERE `lng_import_id` = 3;  -- FY2016-17, 4,455,734 TOE
+UPDATE `fact_lng_imports` SET `imports_bcf` = 297.319 WHERE `lng_import_id` = 4;  -- FY2017-18, 7,492,597 TOE
+UPDATE `fact_lng_imports` SET `imports_bcf` = 353.684 WHERE `lng_import_id` = 5;  -- FY2018-19, 8,913,006 TOE
+
+INSERT INTO `fact_lng_imports` (`lng_import_id`, `year_id`, `imports_bcf`) VALUES
+(18, 21, 330.172),  -- FY2019-20, HDIP 8,320,497 TOE (NEPRA SOI 2024 TABLE 1)
+(19, 22, 393.681),  -- FY2020-21, HDIP 9,920,947 TOE
+(20, 23, 376.942),  -- FY2021-22, HDIP 9,499,119 TOE
+(21, 24, 319.494),  -- FY2022-23, HDIP 8,051,421 TOE
+(22, 25, 378.621),  -- FY2023-24, OGRA PIR 2023-24 Tables 4.1+4.2, 378,621,196 MMBtu
+(23, 26, 366.200);  -- FY2024-25, OGRA PIR 2024-25 Tables 4.1+4.2, 366,200,415 MMBtu
+
+-- PATCH 10C : fact_natural_gas.gap_with_lng_bcf recomputed year_id 16-26, gas_id 16-26.
+-- Source: this dump's own columns, identity gap_bcf + imports_bcf; volumes from PATCH 10B.
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 259.617 WHERE `gas_id` = 16;  -- 240.867 +  18.750
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 272.032 WHERE `gas_id` = 17;  -- 176.632 +  95.400
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 271.359 WHERE `gas_id` = 18;  --  94.548 + 176.811
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 301.558 WHERE `gas_id` = 19;  --   4.239 + 297.319
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 336.713 WHERE `gas_id` = 20;  -- -16.971 + 353.684
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 323.082 WHERE `gas_id` = 21;  --  -7.090 + 330.172
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 209.922 WHERE `gas_id` = 22;  -- -183.759 + 393.681
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 271.759 WHERE `gas_id` = 23;  -- -105.183 + 376.942
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 283.602 WHERE `gas_id` = 24;  -- -35.892 + 319.494
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 311.435 WHERE `gas_id` = 25;  -- -67.186 + 378.621
+UPDATE `fact_natural_gas` SET `gap_with_lng_bcf` = 292.067 WHERE `gas_id` = 26;  -- -74.133 + 366.200
+
+-- PATCH 10F : fact_consm_conn year_id 10 (FY2008-09), 15 rows ids 136-150.
+-- Source: OGRA Annual Report FY 2008-09, section 'Number of Consumers', Table 4.13 'Addition to SSGCL & SNGPL Consumer Base' (PDF p.69). (Source: SNGPL & SSGCL). AJK folded into Punjab.
+INSERT INTO `fact_consm_conn` (`connection_id`, `year_id`, `utility_id`, `province_id`, `sector_id`, `consumers_added`) VALUES
+(136, 10, 1, 1, 1, 226375),
+(137, 10, 1, 1, 2, 2747),
+(138, 10, 1, 1, 3, 415),
+(139, 10, 1, 3, 1, 31009),
+(140, 10, 1, 3, 2, 319),
+(141, 10, 1, 3, 3, 96),
+(142, 10, 2, 8, 1, 38808),
+(143, 10, 2, 8, 2, 391),
+(144, 10, 2, 8, 3, 73),
+(145, 10, 2, 7, 1, 30921),
+(146, 10, 2, 7, 2, 566),
+(147, 10, 2, 7, 3, 158),
+(148, 10, 2, 4, 1, 11907),
+(149, 10, 2, 4, 2, 91),
+(150, 10, 2, 4, 3, 9);
+
+-- PATCH 10H : fact_consm_conn year_id 22 (FY2020-21), 15 rows ids 151-165.
+-- Source: OGRA 'State of the Regulated Petroleum Industry 2020-21', section 3.3.6, Table 3.26 'Number of Consumers Added/(Disconnected) during FY2020-21' (printed p.50 = PDF p.52). (Source: SNGPL & SSGCL). CorelDRAW vector-outline PDF, read via pypdfium2 render + Windows OCR.
+INSERT INTO `fact_consm_conn` (`connection_id`, `year_id`, `utility_id`, `province_id`, `sector_id`, `consumers_added`) VALUES
+(151, 22, 1, 1, 1, 304064),
+(152, 22, 1, 1, 2, 1275),
+(153, 22, 1, 1, 3, 70),
+(154, 22, 1, 3, 1, 65979),
+(155, 22, 1, 3, 2, 222),
+(156, 22, 1, 3, 3, 8),
+(157, 22, 2, 8, 1, 27625),
+(158, 22, 2, 8, 2, -322),
+(159, 22, 2, 8, 3, -2),
+(160, 22, 2, 7, 1, 50871),
+(161, 22, 2, 7, 2, -859),
+(162, 22, 2, 7, 3, -161),
+(163, 22, 2, 4, 1, 18065),
+(164, 22, 2, 4, 2, 71),
+(165, 22, 2, 4, 3, 148);
+
+-- PATCH 10I : fact_consm_conn year_id 11 (FY2009-10), 15 rows ids 166-180.
+-- Source: OGRA Annual Report 2009-2010 (new/annual_report_2009_2010.pdf), section 'Number of Consumers', Table 4.12 'Addition to SSGCL and SNGPL Consumer Base' (printed p.44 = PDF p.62). CorelDRAW vector-outline PDF, read via pypdfium2 render + Windows OCR.
+INSERT INTO `fact_consm_conn` (`connection_id`, `year_id`, `utility_id`, `province_id`, `sector_id`, `consumers_added`) VALUES
+(166, 11, 1, 1, 1, 232453),
+(167, 11, 1, 1, 2, 3443),
+(168, 11, 1, 1, 3, 375),
+(169, 11, 1, 3, 1, 41010),
+(170, 11, 1, 3, 2, 378),
+(171, 11, 1, 3, 3, 29),
+(172, 11, 2, 8, 1, 42300),
+(173, 11, 2, 8, 2, 439),
+(174, 11, 2, 8, 3, 38),
+(175, 11, 2, 7, 1, 57002),
+(176, 11, 2, 7, 2, 1368),
+(177, 11, 2, 7, 3, 237),
+(178, 11, 2, 4, 1, 11184),
+(179, 11, 2, 4, 2, 161),
+(180, 11, 2, 4, 3, 3);
+
+-- PATCH 10K : fact_consm_conn year_id 6 (FY2004-05) and year_id 12 (FY2010-11), 9 of 15 cells each, ids 181-198; SSGCL Sindh Interior / Karachi left NULL (OGRA prints a single merged 'Sindh').
+-- Source: OGRA Annual Report 2004-2005, Exhibit 8.10 'Summary of New Gas Connections Provided During FY 2005' (printed p.82 = PDF p.49); OGRA Annual Report 2010-2011, Table 4.17 'Addition to SSGCL and SNGPL Consumer Base' (printed p.45 = PDF p.55). (Source: SNGPL & SSGCL).
+-- PATCH 10K : fact_energy_overview year_id 1-6, ids 16-21 (only the sourceable columns; transformation losses / energy used in transformation / sector own use stay NULL).
+-- Source: ES 2006-07 Table 15.8 (report p.230) cross-checked by ES 2007-08 Table 15.9 (report p.251) for year_id 1-3 supply; this dump's own per-fuel rows for year_id 4-6 (supply + final consumption + gap), confirmed by ES 2011-12 Table 14.6 (report p.201).
+-- NOTE (unresolved): fact_energy_overview year_id >= 19 appears to lag fact_primary_energy_supply by one fiscal year and duplicates year_id 18's value; not corrected here (needs the HDIP sheet that produced the table).
+INSERT INTO `fact_consm_conn` (`connection_id`, `year_id`, `utility_id`, `province_id`, `sector_id`, `consumers_added`) VALUES
+(181, 6, 1, 1, 1, 152765),
+(182, 6, 1, 1, 2, 3073),
+(183, 6, 1, 1, 3, 375),
+(184, 6, 1, 3, 1, 21541),
+(185, 6, 1, 3, 2, 401),
+(186, 6, 1, 3, 3, 47),
+(187, 6, 2, 4, 1, 9652),
+(188, 6, 2, 4, 2, 111),
+(189, 6, 2, 4, 3, 1),
+(190, 12, 1, 1, 1, 219463),
+(191, 12, 1, 1, 2, 2086),
+(192, 12, 1, 1, 3, 188),
+(193, 12, 1, 3, 1, 38194),
+(194, 12, 1, 3, 2, 386),
+(195, 12, 1, 3, 3, 32),
+(196, 12, 2, 4, 1, 10265),
+(197, 12, 2, 4, 2, 112),
+(198, 12, 2, 4, 3, 445);
+
+INSERT INTO `fact_energy_overview` (`overview_id`, `year_id`, `total_primary_supply_toe`, `total_final_consumption_toe`, `supply_consumption_gap_toe`) VALUES
+(16, 1, 43185000.000, NULL, NULL),   -- FY1999-2000, ES 2006-07 Table 15.8 p.230 (43.185 MTOE); ES 2007-08 Table 15.9 prints the same as 43.19
+(17, 2, 44404000.000, NULL, NULL),   -- FY2000-2001, ES 2006-07 Table 15.8 (44.404); confirmed 44.40 in ES 2007-08
+(18, 3, 45068000.000, NULL, NULL),   -- FY2001-2002, ES 2006-07 Table 15.8 (45.068); confirmed 45.07 in ES 2007-08 and ES 2011-12
+(19, 4, 47060000.000, 26310000.000, 20750000.000),  -- FY2002-2003, this dump's own per-fuel rows 47,058,549 / 26,307,854; ES 2011-12 Table 14.6 prints 47.06
+(20, 5, 50850000.000, 28980000.000, 21870000.000),  -- FY2003-2004, own rows 50,850,387 / 28,978,949; ES 2011-12 prints 50.85
+(21, 6, 55580000.000, 32100000.000, 23480000.000);  -- FY2004-2005, own rows 55,583,703 / 32,103,937; ES 2011-12 prints 55.58
+
+-- Keep AUTO_INCREMENT counters ahead of the rows added above.
+ALTER TABLE `fact_gas_sector_consumption`
+  MODIFY `gas_sector_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=198;
+
+ALTER TABLE `fact_renewable_capacity`
+  MODIFY `renewable_capacity_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=88;
+
+ALTER TABLE `fact_td_losses`
+  MODIFY `td_loss_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+
+ALTER TABLE `fact_lng_imports`
+  MODIFY `lng_import_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+
+ALTER TABLE `fact_consm_conn`
+  MODIFY `connection_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=199;
+
+ALTER TABLE `fact_energy_overview`
+  MODIFY `overview_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+
+ALTER TABLE `fact_primary_energy_supply`
+  MODIFY `supply_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=333;
+
+ALTER TABLE `fact_final_energy_consumption`
+  MODIFY `consumption_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=199;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

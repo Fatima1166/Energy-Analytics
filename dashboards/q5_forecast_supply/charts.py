@@ -1,19 +1,22 @@
 """
-dashboards/q5_forecast_supply/charts.py -- visuals for Forecasted Energy Supply (question 5).
+dashboards/q5_forecast_supply/charts.py -- the six charts for Forecasted Energy
+Supply (question 5).
 
-Seven visualization figures covering the analytical objectives:
-V1  Historical supply trajectory (1999-2024) -- Primary Supply & Generation by fuel
-V2  Supply scenario fan (2025-2035)          -- Low / Base / High trajectories with envelope
-V3  Fuel & technology supply mix evolution   -- Technology shares and clean target tracking
-V4  Installed generation capacity (MW/GW)    -- Technology-wise capacity expansion
-V5  Supply adequacy & reserve margin         -- Supply vs demand and system reserve corridor
-V6  Energy security & import vulnerability   -- Indigenous domestic vs imported fuel trajectory
-V7  Forecast reliability & backtesting       -- Hold-out validation (2021-2024) vs actuals
+  V1  Supply so far        -- primary energy by source, and electricity by source
+  V2  Three ways supply can go -- slow, planned and fast growth to the horizon
+  V3  What the electricity is made of -- each source, and the clean share
+  V4  Does supply cover demand -- supply next to the demand question 4 forecasts
+  V5  Where the supply comes from -- made at home vs bought from abroad
+  V6  How far to trust it   -- average error on years the model had not seen
+
+Every chart is drawn the same way: the years we were told about are solid, the
+years the model guesses are dashed, so a guessed figure is never mistaken for a
+real one.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -21,11 +24,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from core.supply_forecast import (
-    ACTUAL,
     CLEAN_POLICY_TARGET_DEFAULT,
-    FUEL_COLORS,
     HISTORY_END,
-    PROJECTED,
     SCENARIO_COLORS,
     SCENARIO_ORDER,
 )
@@ -77,7 +77,7 @@ def _dark_theme(fig, height: int = 380, y_title: Optional[str] = None,
     return fig
 
 
-def _boundary(fig, year: Optional[int] = HISTORY_END, text: str = "Reported ◀ | ▶ Modelled"):
+def _boundary(fig, year: Optional[int] = HISTORY_END, text: str = "Measured here ◀ | ▶ Forecast"):
     if year is None:
         return fig
     fig.add_vline(x=year + 0.5, line=dict(color="#64748B", width=1.3, dash="dash"))
@@ -92,7 +92,7 @@ def _boundary(fig, year: Optional[int] = HISTORY_END, text: str = "Reported ◀ 
     return fig
 
 
-# ═══════════════════════════ Visual 1: History ═══════════════════════════════
+# ═══════════════════════════ V1: supply so far ═══════════════════════════════
 
 def visual1_history_trajectory(
     hist: pd.DataFrame,
@@ -101,48 +101,53 @@ def visual1_history_trajectory(
     unit_elec: str = "GWh",
     factor_elec: float = 1.0,
 ) -> go.Figure:
-    """
-    Subplots:
-    Panel 1: Primary Energy Supply by Fuel Source (stacked area in chosen energy unit)
-    Panel 2: Power Generation Supply by Technology (stacked area in chosen electricity unit)
-    """
+    """Left: all the energy the country had, by source.  Right: the electricity it
+    generated, by source.  Both are stacked, so the height is the total."""
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=(
-            f"Primary Energy Supply by Source ({unit_energy})",
-            f"Power Generation by Technology ({unit_elec})",
+            f"Energy supplied, by source ({unit_energy})",
+            f"Electricity generated, by source ({unit_elec})",
         ),
         horizontal_spacing=0.10,
     )
 
     h_pes = hist[hist["calendar_year"] >= 2002].copy()
-    years_p = h_pes["calendar_year"].values
 
     pes_sources = [
         ("pes_gas_toe", "Natural Gas", "#F97316"),
-        ("pes_oil_toe", "Oil & Petroleum", "#EF4444"),
+        ("pes_oil_toe", "Oil", "#EF4444"),
         ("pes_coal_toe", "Coal", "#6B7280"),
-        ("pes_hydro_toe", "Hydro Electricity", "#0284C7"),
-        ("pes_nuclear_toe", "Nuclear Electricity", "#A78BFA"),
-        ("pes_renewables_toe", "Renewables (Solar/Wind)", "#10B981"),
+        ("pes_hydro_toe", "Hydro", "#0284C7"),
+        ("pes_nuclear_toe", "Nuclear", "#A78BFA"),
+        ("pes_renewables_toe", "Solar & wind", "#10B981"),
     ]
+    # A source the record never reports is left off the stack; a source that
+    # reports in some years is not -- an unreported year would otherwise be
+    # drawn as "that source supplied nothing".
+    present_pes = [(c, n, colr) for c, n, colr in pes_sources
+                   if c in h_pes.columns and h_pes[c].notna().any()]
+    # A stacked area has no way to show a gap, so the stack keeps only the years
+    # in which every source it draws has a reading.
+    if present_pes:
+        _cols = [c for c, _, _ in present_pes]
+        h_pes = h_pes[h_pes[_cols].notna().all(axis=1)]
+    years_p = h_pes["calendar_year"].values
 
-    for col, name, colr in pes_sources:
-        if col in h_pes.columns:
-            vals = h_pes[col].fillna(0.0).values * factor_energy
-            fig.add_trace(
-                go.Scatter(
-                    x=years_p, y=vals, name=name, mode="lines",
-                    stackgroup="pes", line=dict(width=0.8, color=colr),
-                    fillcolor=colr, legendgroup="pes",
-                    hovertemplate=f"{name}: %{{y:,.1f}} {unit_energy}<extra></extra>",
-                ),
-                row=1, col=1,
-            )
+    for col, name, colr in present_pes:
+        vals = h_pes[col].values * factor_energy
+        fig.add_trace(
+            go.Scatter(
+                x=years_p, y=vals, name=name, mode="lines",
+                stackgroup="pes", line=dict(width=0.8, color=colr),
+                fillcolor=colr, legendgroup="pes",
+                hovertemplate=f"{name}: %{{y:,.1f}} {unit_energy}<extra></extra>",
+            ),
+            row=1, col=1,
+        )
 
-    # Panel 2: Electricity Generation by Technology
+    # Right: electricity generated by each source
     h_gen = hist[hist["calendar_year"] >= 2000].copy()
-    years_g = h_gen["calendar_year"].values
 
     gen_sources = [
         ("gen_hydro_gwh", "Hydro", "#0284C7"),
@@ -150,30 +155,35 @@ def visual1_history_trajectory(
         ("gen_wind_gwh", "Wind", "#10B981"),
         ("gen_nuclear_gwh", "Nuclear", "#A78BFA"),
         ("gen_coal_gwh", "Coal", "#6B7280"),
-        ("gen_gas_gwh", "Natural Gas / RLNG", "#F97316"),
+        ("gen_gas_gwh", "Natural Gas", "#F97316"),
     ]
+    present_gen = [(c, n, colr) for c, n, colr in gen_sources
+                   if c in h_gen.columns and h_gen[c].notna().any()]
+    if present_gen:
+        _gcols = [c for c, _, _ in present_gen]
+        h_gen = h_gen[h_gen[_gcols].notna().all(axis=1)]
+    years_g = h_gen["calendar_year"].values
 
-    for col, name, colr in gen_sources:
-        if col in h_gen.columns:
-            vals = h_gen[col].fillna(0.0).values * factor_elec
-            fig.add_trace(
-                go.Scatter(
-                    x=years_g, y=vals, name=name, mode="lines",
-                    stackgroup="gen", line=dict(width=0.8, color=colr),
-                    fillcolor=colr, legendgroup="gen",
-                    hovertemplate=f"{name}: %{{y:,.1f}} {unit_elec}<extra></extra>",
-                ),
-                row=1, col=2,
-            )
+    for col, name, colr in present_gen:
+        vals = h_gen[col].values * factor_elec
+        fig.add_trace(
+            go.Scatter(
+                x=years_g, y=vals, name=name, mode="lines",
+                stackgroup="gen", line=dict(width=0.8, color=colr),
+                fillcolor=colr, legendgroup="gen",
+                hovertemplate=f"{name}: %{{y:,.1f}} {unit_elec}<extra></extra>",
+            ),
+            row=1, col=2,
+        )
 
     fig.update_xaxes(title_text="Year", row=1, col=1)
     fig.update_xaxes(title_text="Year", row=1, col=2)
-    fig.update_yaxes(title_text=f"Primary Energy Supply ({unit_energy})", row=1, col=1)
-    fig.update_yaxes(title_text=f"Power Generation ({unit_elec})", row=1, col=2)
+    fig.update_yaxes(title_text=f"Primary energy ({unit_energy})", row=1, col=1)
+    fig.update_yaxes(title_text=f"Electricity generated ({unit_elec})", row=1, col=2)
     return _dark_theme(fig, height=390, legend_h=True, x_title=None)
 
 
-# ═══════════════════════════ Visual 2: Scenario Fans ═════════════════════════
+# ═══════════════════════ V2: the three supply paths ══════════════════════════
 
 def visual2_scenario_fans(
     hist: pd.DataFrame,
@@ -184,16 +194,13 @@ def visual2_scenario_fans(
     unit_elec: str = "GWh",
     factor_elec: float = 1.0,
 ) -> go.Figure:
-    """
-    Subplots:
-    Panel 1: Total Primary Energy Supply Scenario Fan (Low / Base / High)
-    Panel 2: Power Generation Supply Scenario Fan (Low / Base / High)
-    """
+    """Left: total energy supply, right: electricity supply.  Both show the years we
+    were told about and the slow, planned and fast paths forward."""
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=(
-            f"Total Primary Energy Supply Outlook ({unit_energy})",
-            f"Power Generation Supply Outlook ({unit_elec})",
+            f"How total energy supply grows ({unit_energy})",
+            f"How electricity supply grows ({unit_elec})",
         ),
         horizontal_spacing=0.10,
     )
@@ -208,15 +215,16 @@ def visual2_scenario_fans(
         x_hist = h_sub["calendar_year"].values
         y_hist = h_sub[series_name].values * factor
 
-        # Solid historical reported line
+        # The solid line: years we were told about
         fig.add_trace(
             go.Scatter(
-                x=x_hist, y=y_hist, name=f"Reported {unit_lbl}",
+                x=x_hist, y=y_hist, name=f"Measured {unit_lbl}",
                 mode="lines+markers",
                 marker=dict(size=4, color="#E2E8F0"),
                 line=dict(color="#E2E8F0", width=2.4),
                 showlegend=(col_idx == 1),
-                hovertemplate=f"Reported: %{{y:,.1f}} {unit_lbl}<extra></extra>",
+                hovertemplate=f"Measured: %{{y:,.1f}} {unit_lbl}<extra></extra>",
+                connectgaps=False,
             ),
             row=1, col=col_idx,
         )
@@ -242,7 +250,7 @@ def visual2_scenario_fans(
                         fill="toself",
                         fillcolor="rgba(0, 166, 251, 0.12)",
                         line=dict(color="rgba(255,255,255,0)"),
-                        name="Scenario Envelope",
+                        name="Between slow and fast",
                         showlegend=(col_idx == 1),
                         hoverinfo="skip",
                     ),
@@ -257,27 +265,28 @@ def visual2_scenario_fans(
                     clr = SCENARIO_COLORS.get(sc, "#00A6FB")
                     fig.add_trace(
                         go.Scatter(
-                            x=x_sc, y=y_sc, name=f"{sc} Scenario",
+                            x=x_sc, y=y_sc, name=f"{sc} case",
                             mode="lines+markers",
                             marker=dict(size=4, color=clr),
                             line=dict(color=clr, width=2.2, dash="dash" if sc != "Base" else "solid"),
                             showlegend=(col_idx == 1),
                             hovertemplate=f"{sc}: %{{y:,.1f}} {unit_lbl}<extra></extra>",
+                            connectgaps=False,
                         ),
                         row=1, col=col_idx,
                     )
 
-        # Boundary line
+        # Where the telling ends and the guessing begins
         _boundary(fig, HISTORY_END)
 
     fig.update_xaxes(title_text="Year", row=1, col=1)
     fig.update_xaxes(title_text="Year", row=1, col=2)
-    fig.update_yaxes(title_text=f"Primary Energy Supply ({unit_energy})", row=1, col=1)
-    fig.update_yaxes(title_text=f"Power Generation ({unit_elec})", row=1, col=2)
+    fig.update_yaxes(title_text=f"Primary energy ({unit_energy})", row=1, col=1)
+    fig.update_yaxes(title_text=f"Electricity generated ({unit_elec})", row=1, col=2)
     return _dark_theme(fig, height=390, legend_h=True, x_title=None)
 
 
-# ═══════════════════════════ Visual 3: Tech Mix Evolution ═════════════════════
+# ═══════════════════════ V3: what the electricity is made of ═════════════════
 
 def visual3_technology_mix(
     tech_mix: pd.DataFrame,
@@ -286,14 +295,11 @@ def visual3_technology_mix(
     unit_elec: str = "GWh",
     factor_elec: float = 1.0,
 ) -> go.Figure:
-    """
-    Subplots / Dual-Axis:
-    Left: Generation Mix Breakdown by Source (Hydro, Solar, Wind, Nuclear, Coal, Gas) in GWh/TWh.
-    Right: Clean Energy Share % vs Policy Target Benchmarks (60% Clean Target line & 30% ARE line).
-    """
+    """Stacked areas show which sources generate the power; the line on the right
+    axis shows how big a share is clean, next to the two agreed goals."""
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Filter for active scenario or Actual
+    # The chosen path, with the years we were told about in front of it
     sub = tech_mix[(tech_mix["scenario"] == active_scenario) | (tech_mix["scenario"] == "Actual")].copy()
     sub = sub.sort_values("calendar_year").drop_duplicates(subset=["calendar_year"])
     years = sub["calendar_year"].values
@@ -320,104 +326,52 @@ def visual3_technology_mix(
                 secondary_y=False,
             )
 
-    # Clean Energy Share % on secondary axis
+    # How big a share is clean, on the right axis
     clean_pct = sub["clean_share_pct"].values
     fig.add_trace(
         go.Scatter(
-            x=years, y=clean_pct, name="Clean Share %",
+            x=years, y=clean_pct, name="Clean share (%)",
             mode="lines+markers",
             line=dict(color="#22D3EE", width=2.8),
             marker=dict(size=5, color="#22D3EE"),
-            hovertemplate="Clean Share: %{y:.1f}%<extra></extra>",
+            hovertemplate="Clean share: %{y:.1f}%<extra></extra>",
+            connectgaps=False,
         ),
         secondary_y=True,
     )
 
-    # Policy Target horizontal benchmarks (labels on the left to avoid the
-    # right-axis ticks and the last x-axis year colliding with the text)
+    # The two agreed goals (labels on the left so they do not sit on top of the
+    # right-axis numbers or the last year on the bottom axis)
     fig.add_hline(
         y=clean_target, line=dict(color="#10B981", width=1.8, dash="dot"),
-        annotation_text=f"Clean Target ({clean_target:.0f}%)",
+        annotation_text=f"Clean goal ({clean_target:.0f}%)",
         annotation_position="top left", annotation_font=dict(size=10, color="#10B981"),
         secondary_y=True,
     )
     fig.add_hline(
         y=30.0, line=dict(color="#F59E0B", width=1.5, dash="dot"),
-        annotation_text="ARE Target (30%)",
+        annotation_text="Renewables goal (30%)",
         annotation_position="bottom left", annotation_font=dict(size=10, color="#F59E0B"),
         secondary_y=True,
     )
 
     _boundary(fig, HISTORY_END)
-    fig.update_yaxes(title_text=f"Generation ({unit_elec})", secondary_y=False)
-    fig.update_yaxes(title_text="Clean Energy Share (%)", range=[0, 100], secondary_y=True)
+    fig.update_yaxes(title_text=f"Electricity generated ({unit_elec})", secondary_y=False)
+    fig.update_yaxes(title_text="Clean share of electricity (%)", range=[0, 100], secondary_y=True)
 
     return _dark_theme(fig, height=400, legend_h=True)
 
 
-# ═══════════════════════════ Visual 4: Capacity Expansion ════════════════════
+# ═══════════════════════ V4: does supply cover demand ════════════════════════
 
-def visual4_capacity_expansion(
-    capacity_df: pd.DataFrame,
-    active_scenario: str = "Base",
-    unit_power: str = "MW",
-    factor_power: float = 1.0,
-) -> go.Figure:
-    """
-    Installed Generation Capacity expansion (MW/GW) breakdown across technologies:
-    Hydro, Solar, Wind, Nuclear, Coal, Gas.
-    """
-    fig = go.Figure()
-
-    sub = capacity_df[(capacity_df["scenario"] == active_scenario) | (capacity_df["scenario"] == "Actual")].copy()
-    sub = sub.sort_values("calendar_year").drop_duplicates(subset=["calendar_year"])
-    years = sub["calendar_year"].values
-
-    cap_techs = [
-        ("cap_hydro_mw", "Hydro Capacity", "#0284C7"),
-        ("cap_solar_mw", "Solar Capacity", "#F59E0B"),
-        ("cap_wind_mw", "Wind Capacity", "#10B981"),
-        ("cap_nuclear_mw", "Nuclear Capacity", "#A78BFA"),
-        ("cap_coal_mw", "Coal Capacity", "#6B7280"),
-        ("cap_gas_mw", "Gas / Peaking Capacity", "#F97316"),
-    ]
-
-    for col, name, clr in cap_techs:
-        if col in sub.columns:
-            vals = sub[col].values * factor_power
-            fig.add_trace(
-                go.Scatter(
-                    x=years, y=vals, name=name, mode="lines",
-                    stackgroup="cap", line=dict(width=0.6, color=clr),
-                    fillcolor=clr,
-                    hovertemplate=f"{name}: %{{y:,.1f}} {unit_power}<extra></extra>",
-                ),
-            )
-
-    # Total line
-    tot_cap = sub["total_capacity_mw"].values * factor_power
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=tot_cap, name="Total Capacity",
-            mode="lines",
-            line=dict(color="#FFFFFF", width=2.0, dash="dash"),
-            hovertemplate=f"Total: %{{y:,.1f}} {unit_power}<extra></extra>",
-        ),
-    )
-
-    _boundary(fig, HISTORY_END)
-    return _dark_theme(fig, height=380, y_title=f"Installed Capacity ({unit_power})", legend_h=True)
-
-
-# ═══════════════════════════ Visual 5: Supply Adequacy ═══════════════════════
-
-def visual5_supply_vs_demand(
+def visual4_supply_vs_demand(
     adequacy_df: pd.DataFrame,
     active_scenario: str = "Base",
     unit_elec: str = "GWh",
     factor_elec: float = 1.0,
 ) -> go.Figure:
-    """Standalone clean chart for Generation Supply vs Grid Demand."""
+    """Electricity supply next to the demand it has to meet.  Where the blue line
+    is above the amber one, there is spare supply."""
     fig = go.Figure()
 
     sub = adequacy_df[(adequacy_df["scenario"] == active_scenario) | (adequacy_df["scenario"] == "Actual")].copy()
@@ -429,182 +383,39 @@ def visual5_supply_vs_demand(
 
     fig.add_trace(
         go.Scatter(
-            x=years, y=supp_vals, name="Generation Supply",
+            x=years, y=supp_vals, name="Electricity supply",
             mode="lines+markers",
             line=dict(color="#00A6FB", width=2.5),
             marker=dict(size=4, color="#00A6FB"),
             hovertemplate=f"Supply: %{{y:,.1f}} {unit_elec}<extra></extra>",
+            connectgaps=False,
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=years, y=dem_vals, name="Grid Demand",
+            x=years, y=dem_vals, name="Demand",
             mode="lines",
             line=dict(color="#F59E0B", width=2.2, dash="dash"),
+            fill="tonexty", fillcolor="rgba(16, 185, 129, 0.13)",
             hovertemplate=f"Demand: %{{y:,.1f}} {unit_elec}<extra></extra>",
+            connectgaps=False,
         )
     )
 
     _boundary(fig, HISTORY_END)
-    fig.update_layout(
-        title=dict(
-            text=f"Generation Supply vs Demand ({unit_elec})",
-            font=dict(size=13, color="#F1F5F9"),
-            x=0.03, y=0.96,
-        ),
-        margin=dict(l=62, r=40, t=55, b=60),
-    )
-    return _dark_theme(fig, height=380, y_title=f"Generation ({unit_elec})", legend_h=True)
+    return _dark_theme(fig, height=380, y_title=f"Electricity ({unit_elec})", legend_h=True)
 
 
-def visual5_reserve_margin(
-    adequacy_df: pd.DataFrame,
-    active_scenario: str = "Base",
-) -> go.Figure:
-    """Standalone clean chart for System Reserve Margin (%) with safe corridor."""
-    fig = go.Figure()
+# ═══════════════════════ V5: where the supply comes from ═════════════════════
 
-    sub = adequacy_df[(adequacy_df["scenario"] == active_scenario) | (adequacy_df["scenario"] == "Actual")].copy()
-    sub = sub.sort_values("calendar_year").drop_duplicates(subset=["calendar_year"])
-    years = sub["calendar_year"].values
-    margin_pct = sub["reserve_margin_pct"].values
-
-    bar_colors = [
-        "#EF4444" if m < 10.0 else ("#10B981" if m <= 25.0 else "#F59E0B")
-        for m in margin_pct
-    ]
-
-    fig.add_trace(
-        go.Bar(
-            x=years, y=margin_pct, name="Reserve Margin %",
-            marker_color=bar_colors,
-            hovertemplate="Reserve Margin: %{y:.1f}%<extra></extra>",
-        )
-    )
-
-    # Safe Corridor (15% - 25%)
-    fig.add_hrect(
-        y0=15.0, y1=25.0,
-        fillcolor="rgba(16, 185, 129, 0.15)", line_width=0,
-        annotation_text="Safe Corridor (15–25%)",
-        annotation_position="top left",
-        annotation_font=dict(size=9.5, color="#10B981"),
-    )
-    fig.add_hline(
-        y=15.0, line=dict(color="#10B981", width=1.2, dash="dot"),
-    )
-
-    _boundary(fig, HISTORY_END)
-    fig.update_layout(
-        title=dict(
-            text="System Reserve Margin Trajectory (%)",
-            font=dict(size=13, color="#F1F5F9"),
-            x=0.03, y=0.96,
-        ),
-        margin=dict(l=62, r=40, t=55, b=60),
-    )
-    return _dark_theme(fig, height=380, y_title="Reserve Margin (%)", legend_h=True)
-
-
-def visual5_supply_adequacy(
-    adequacy_df: pd.DataFrame,
-    active_scenario: str = "Base",
-    unit_elec: str = "GWh",
-    factor_elec: float = 1.0,
-) -> go.Figure:
-    """
-    Subplots:
-    Panel 1: Generation Supply vs Grid Demand (GWh/TWh) under active scenario.
-    Panel 2: Reserve Margin % trajectory vs Safe Corridor (15% - 25%).
-    """
-    fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=(
-            f"Generation Supply vs Demand ({unit_elec})",
-            "System Reserve Margin Trajectory (%)",
-        ),
-        horizontal_spacing=0.14,
-    )
-
-    sub = adequacy_df[(adequacy_df["scenario"] == active_scenario) | (adequacy_df["scenario"] == "Actual")].copy()
-    sub = sub.sort_values("calendar_year").drop_duplicates(subset=["calendar_year"])
-    years = sub["calendar_year"].values
-
-    supp_vals = sub["supply_gwh"].values * factor_elec
-    dem_vals = sub["demand_gwh"].values * factor_elec
-
-    # Panel 1: Supply vs Demand
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=supp_vals, name="Supply",
-            mode="lines+markers",
-            line=dict(color="#00A6FB", width=2.4),
-            marker=dict(size=4),
-            hovertemplate=f"Supply: %{{y:,.1f}} {unit_elec}<extra></extra>",
-        ),
-        row=1, col=1,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=dem_vals, name="Grid Demand",
-            mode="lines",
-            line=dict(color="#F59E0B", width=2.2, dash="dash"),
-            hovertemplate=f"Demand: %{{y:,.1f}} {unit_elec}<extra></extra>",
-        ),
-        row=1, col=1,
-    )
-
-    # Panel 2: Reserve margin %
-    margin_pct = sub["reserve_margin_pct"].values
-
-    bar_colors = [
-        "#EF4444" if m < 10.0 else ("#10B981" if m <= 25.0 else "#F59E0B")
-        for m in margin_pct
-    ]
-
-    fig.add_trace(
-        go.Bar(
-            x=years, y=margin_pct, name="Reserve Margin %",
-            marker_color=bar_colors,
-            hovertemplate="Reserve Margin: %{y:.1f}%<extra></extra>",
-        ),
-        row=1, col=2,
-    )
-
-    # Target Corridor (15% - 25%)
-    fig.add_hrect(
-        y0=15.0, y1=25.0,
-        fillcolor="rgba(16, 185, 129, 0.15)", line_width=0,
-        row=1, col=2,
-    )
-    fig.add_hline(
-        y=15.0, line=dict(color="#10B981", width=1.2, dash="dot"),
-        annotation_text="Adequacy Floor (15%)", annotation_position="top left",
-        annotation_font=dict(size=9.5, color="#10B981"),
-        row=1, col=2,
-    )
-
-    _boundary(fig, HISTORY_END)
-    fig.update_xaxes(title_text="Year", row=1, col=1)
-    fig.update_xaxes(title_text="Year", row=1, col=2)
-    fig.update_yaxes(title_text=f"Generation ({unit_elec})", row=1, col=1)
-    fig.update_yaxes(title_text="Reserve Margin (%)", row=1, col=2)
-    return _dark_theme(fig, height=380, legend_h=True, x_title=None)
-
-
-# ═══════════════════════════ Visual 6: Energy Security ═══════════════════════
-
-def visual6_indigenous_vs_imports(
+def visual5_domestic_vs_imports(
     security_df: pd.DataFrame,
     active_scenario: str = "Base",
     unit_energy: str = "TOE",
     factor_energy: float = 1.0,
 ) -> go.Figure:
-    """
-    Subplots / Dual-Axis:
-    Left: Indigenous Domestic Energy vs Imported Energy (stacked area in TOE).
-    Right: Import Dependency % trajectory.
-    """
+    """Stacked: how much energy was made at home and how much was bought from
+    abroad.  The line on the right axis is the imported share."""
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
     sub = security_df[(security_df["scenario"] == active_scenario) | (security_df["scenario"] == "Actual")].copy()
@@ -617,93 +428,95 @@ def visual6_indigenous_vs_imports(
 
     fig.add_trace(
         go.Scatter(
-            x=years, y=dom_vals, name="Indigenous Domestic Energy",
+            x=years, y=dom_vals, name="Made at home",
             mode="lines", stackgroup="sec",
             line=dict(width=0.8, color="#10B981"), fillcolor="#10B981",
-            hovertemplate=f"Indigenous: %{{y:,.1f}} {unit_energy}<extra></extra>",
+            hovertemplate=f"Made at home: %{{y:,.1f}} {unit_energy}<extra></extra>",
         ),
         secondary_y=False,
     )
     fig.add_trace(
         go.Scatter(
-            x=years, y=imp_vals, name="Imported Energy (Oil, LNG, Coal)",
+            x=years, y=imp_vals, name="Bought from abroad",
             mode="lines", stackgroup="sec",
             line=dict(width=0.8, color="#EF4444"), fillcolor="#EF4444",
-            hovertemplate=f"Imports: %{{y:,.1f}} {unit_energy}<extra></extra>",
+            hovertemplate=f"Bought abroad: %{{y:,.1f}} {unit_energy}<extra></extra>",
         ),
         secondary_y=False,
     )
 
-    # Import Share % on right axis
+    # How much of the supply is imported, on the right axis
     fig.add_trace(
         go.Scatter(
-            x=years, y=imp_share, name="Import Dependency %",
+            x=years, y=imp_share, name="Imported share (%)",
             mode="lines+markers",
             line=dict(color="#F59E0B", width=2.4),
             marker=dict(size=4, color="#F59E0B"),
-            hovertemplate="Import Share: %{y:.1f}%<extra></extra>",
+            hovertemplate="Imported share: %{y:.1f}%<extra></extra>",
+            connectgaps=False,
         ),
         secondary_y=True,
     )
 
     _boundary(fig, HISTORY_END)
-    fig.update_yaxes(title_text=f"Energy Supply ({unit_energy})", secondary_y=False)
-    fig.update_yaxes(title_text="Import Dependency (%)", range=[0, 60], secondary_y=True)
+    fig.update_yaxes(title_text=f"Energy supply ({unit_energy})", secondary_y=False)
+    fig.update_yaxes(title_text="Imported share (%)", range=[0, 60], secondary_y=True)
 
     return _dark_theme(fig, height=380, legend_h=True)
 
 
-# ═══════════════════════════ Visual 7: Reliability Backtest ══════════════════
+# ═══════════════════════════ V6: how far to trust it ══════════════════════════
 
-def visual7_reliability_backtest(
-    backtest: dict,
-    unit_elec: str = "GWh",
-    factor_elec: float = 1.0,
-) -> go.Figure:
-    """
-    Compares Actual Reported generation (2021-2024 hold-out) vs Driver model and Trend model predictions.
-    """
-    fig = go.Figure()
-    path_df = backtest.get("paths", pd.DataFrame())
+# The plain words the reader sees instead of the engine's series and model names.
+_SERIES_WORDS = {
+    "Primary Energy Supply": "Total energy supply",
+    "Electricity Generation": "Electricity generated",
+    "Clean Generation": "Clean electricity",
+}
+_MODEL_WORDS = {
+    "Driver": "follows the economy",
+    "Trend": "continues past growth",
+}
 
-    if path_df.empty:
-        return _dark_theme(fig, height=350)
 
-    gen_paths = path_df[path_df["col"] == "gen_total_gwh"].sort_values("calendar_year")
-    if gen_paths.empty:
-        return _dark_theme(fig, height=350)
+def visual6_reliability(table: Optional[pd.DataFrame],
+                        train_end: int, test_end: int) -> go.Figure:
+    """Average error for each series and model, measured on the years the model
+    had not been shown.  A shorter bar is a better forecast."""
+    if table is None or table.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="No test results to show", x=0.5, y=0.5,
+                           xref="paper", yref="paper", showarrow=False,
+                           font=dict(size=13, color=_TICK))
+        return _dark_theme(fig, height=420, legend_h=False)
 
-    years = gen_paths["calendar_year"].values
-    acts = gen_paths["actual"].values * factor_elec
-    driv = gen_paths["predicted_driver"].values * factor_elec
-    tren = gen_paths["predicted_trend"].values * factor_elec
+    hold = table.dropna(subset=["mape_pct"]).sort_values("mape_pct")
+    if hold.empty:
+        fig = go.Figure()
+        fig.add_annotation(text="No test results to show", x=0.5, y=0.5,
+                           xref="paper", yref="paper", showarrow=False,
+                           font=dict(size=13, color=_TICK))
+        return _dark_theme(fig, height=420, legend_h=False)
 
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=acts, name="Actual Reported",
-            mode="lines+markers",
-            marker=dict(size=8, color="#FFFFFF"),
-            line=dict(color="#FFFFFF", width=3.0),
-            hovertemplate=f"Actual: %{{y:,.1f}} {unit_elec}<extra></extra>",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=driv, name="Driver Model (Macro/Elasticity)",
-            mode="lines+markers",
-            marker=dict(size=6, color="#00A6FB"),
-            line=dict(color="#00A6FB", width=2.2, dash="dash"),
-            hovertemplate=f"Driver Predicted: %{{y:,.1f}} {unit_elec}<extra></extra>",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=years, y=tren, name="Trend Model (Log-Linear)",
-            mode="lines+markers",
-            marker=dict(size=6, color="#F59E0B"),
-            line=dict(color="#F59E0B", width=2.2, dash="dot"),
-            hovertemplate=f"Trend Predicted: %{{y:,.1f}} {unit_elec}<extra></extra>",
-        )
-    )
+    labels = [f"{_SERIES_WORDS.get(row['series_name'], row['series_name'])} · "
+              f"{_MODEL_WORDS.get(row['model'], row['model'])}" for _, row in hold.iterrows()]
+    colours = ["#10B981" if row["model"] == "Driver" else "#00A6FB"
+               for _, row in hold.iterrows()]
+    years_tested = max(int(test_end) - int(train_end), 1)
 
-    return _dark_theme(fig, height=350, y_title=f"Power Generation ({unit_elec})", legend_h=True, x_title="Hold-out Year (2021–2024)")
+    fig = go.Figure(go.Bar(
+        y=labels, x=hold["mape_pct"], orientation="h",
+        marker=dict(color=colours),
+        text=[f"{v:.1f}%" for v in hold["mape_pct"]], textposition="outside",
+        customdata=np.column_stack([hold["bias_pct"], hold["calib_r2"]]),
+        hovertemplate=("Average error <b>%{x:.2f}%</b>"
+                       "<br>Read as %{customdata[0]:+.1f}% of the real figure"
+                       "<br>Fit quality R² %{customdata[1]:.2f}"
+                       f"<br>Years tested {years_tested}<extra></extra>"),
+    ))
+    fig.add_annotation(x=1.0, y=1.12, xref="paper", yref="paper", xanchor="right",
+                       text=f"Tested on {int(train_end) + 1}–{int(test_end)}",
+                       showarrow=False, font=dict(size=10, color="#94A3B8"))
+    return _dark_theme(fig, height=420, legend_h=False,
+                       x_title="Average error (%)  — shorter bar is better",
+                       y_title="What the model forecasts")

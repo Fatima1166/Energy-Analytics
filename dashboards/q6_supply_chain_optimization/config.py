@@ -1,132 +1,100 @@
-# Configuration for the Supply Chain Optimization dashboard (Q6)
+# Configuration for the Supply Chain dashboard (Question 6).
+#
+# Question 6 asks how well the fuel and renewable supply chains are being used,
+# so this file holds only what that answer needs: the standards each part is
+# judged against, the four parts that make up the overall score, and the
+# strategies that decide which part matters most.
 
-DASHBOARD_TITLE = "Optimal Fuel & Renewable Energy Supply Chain Utilization"
-HISTORY_START = 1999
-HISTORY_END = 2024
-DEFAULT_HORIZON = 2035
+# --- Standards (a part scoring 100 has met its standard) --------------------
+BENCHMARK_IMPORT_DEPENDENCY_MAX = 30.0  # % of supply bought from abroad
+BENCHMARK_RE_UTILISATION_MIN = 75.0     # % of clean plant you would expect it to make
+BENCHMARK_GAS_SELFSUFFICIENCY = 70.0    # % of gas demand met at home
 
-# ── Fuel supply chain efficiency benchmarks ──────────────────────────────────
-# Based on IEA / Pakistan Energy Yearbook guidelines
-BENCHMARK_TRANSMISSION_EFFICIENCY = 85.0   # % target T&D efficiency (15% loss)
-BENCHMARK_IMPORT_DEPENDENCY_MAX   = 30.0   # % max acceptable import share
-BENCHMARK_RE_UTILISATION_MIN      = 75.0   # % min capacity utilisation (RE)
-BENCHMARK_FUEL_WASTE_MAX           = 15.0   # % max allowable supply chain loss
-BENCHMARK_GAS_SELFSUFFICIENCY      = 70.0   # % domestic gas vs total gas demand
+# Where the overall score stops being good and starts being poor.
+SCORE_GOOD = 75.0
+SCORE_FAIR = 50.0
 
-# Renewable utilisation factors (capacity factor proxies, %)
-CF_SOLAR   = 18.0
-CF_WIND    = 30.0
-CF_HYDRO   = 45.0
-CF_NUCLEAR = 85.0
-CF_THERMAL = 60.0
+# --- The four parts of the overall score ------------------------------------
+# Each is a 0-100 score computed in page.py:
+#   grid_efficiency        -- electricity that arrives vs electricity generated
+#   re_utilisation         -- what clean plant makes vs what it could make
+#   import_independence    -- how little of the supply is bought from abroad
+#   gas_self_sufficiency   -- how much gas demand is met at home
+#
+# A fifth part used to sit here ("fuel waste"), but it was worked out from the
+# same grid-loss numbers as grid_efficiency, so it said the same thing twice and
+# pulled the score in one direction twice over. It is gone.
 
-# Base supply chain efficiency score weights (summing to 1.0)
-SCE_WEIGHTS = {
-    "transmission_efficiency": 0.25,
-    "re_utilisation":          0.25,
-    "import_dependency":       0.20,
-    "fuel_waste_reduction":    0.20,
-    "gas_self_sufficiency":    0.10,
-}
-
-# ── Optimization Strategies ──────────────────────────────────────────────────
-STRATEGY_PRESETS = {
-    "Balanced Optimization": {
+# --- Strategies ---------------------------------------------------------------
+# One entry per choice in the sidebar. Each sets a clean-energy target, a grid
+# loss target, and how much weight each of the four parts carries.
+STRATEGIES = {
+    "All four parts equally": {
         "re_target": 40,
-        "fuel_target": 60,
-        "priority": "Balanced (Equal Emphasis)",
         "loss_target": 15.0,
-        "desc": "Balanced portfolio targeting 40% renewable energy and 15% transmission losses.",
+        "weights": {
+            "grid_efficiency": 0.25,
+            "re_utilisation": 0.25,
+            "import_independence": 0.25,
+            "gas_self_sufficiency": 0.25,
+        },
+        "desc": "No favourite: grid losses, clean plant use, imports and gas all count the same.",
     },
-    "Accelerated Clean Transition": {
+    "More clean energy": {
         "re_target": 60,
-        "fuel_target": 40,
-        "priority": "Renewable & Clean Transition",
         "loss_target": 13.0,
-        "desc": "Aggressive scaling of solar, wind and hydro to 60% with modernised low-loss grid.",
+        "weights": {
+            "grid_efficiency": 0.25,
+            "re_utilisation": 0.40,
+            "import_independence": 0.20,
+            "gas_self_sufficiency": 0.15,
+        },
+        "desc": "Solar, wind and hydro count for the most, on a modernised low-loss grid.",
     },
-    "Aggressive Net-Zero Ambition": {
+    "Much more clean energy": {
         "re_target": 75,
-        "fuel_target": 25,
-        "priority": "Renewable & Clean Transition",
         "loss_target": 11.0,
-        "desc": "Deep decarbonization with 75% clean energy, minimizing thermal generation.",
+        "weights": {
+            "grid_efficiency": 0.20,
+            "re_utilisation": 0.50,
+            "import_independence": 0.20,
+            "gas_self_sufficiency": 0.10,
+        },
+        "desc": "A deep shift to clean power, keeping as little fuel burning as possible.",
     },
-    "Energy Security & Import Reduction": {
+    "Buy less from abroad": {
         "re_target": 50,
-        "fuel_target": 50,
-        "priority": "Energy Security (Import & Gas Focus)",
         "loss_target": 14.0,
-        "desc": "Maximized reliance on indigenous gas, hydro, and domestic renewables to curb LNG imports.",
+        "weights": {
+            "grid_efficiency": 0.15,
+            "re_utilisation": 0.15,
+            "import_independence": 0.40,
+            "gas_self_sufficiency": 0.30,
+        },
+        "desc": "Home gas, home hydro and home renewables, so less is bought from other countries.",
     },
-    "Grid Efficiency & Loss Minimization": {
+    "Fix grid losses first": {
         "re_target": 45,
-        "fuel_target": 55,
-        "priority": "Grid & Transmission Efficiency",
         "loss_target": 10.0,
-        "desc": "Infrastructure overhaul focusing on cutting T&D losses to international standards (10%).",
-    },
-    "Custom Policy Mix": {
-        "re_target": 40,
-        "fuel_target": 60,
-        "priority": "Balanced (Equal Emphasis)",
-        "loss_target": 15.0,
-        "desc": "User-defined custom supply chain targets and weighting parameters.",
-    },
-}
-
-# ── Priority Weights Presets ──────────────────────────────────────────────────
-PRIORITY_WEIGHTS = {
-    "Balanced (Equal Emphasis)": {
-        "transmission_efficiency": 0.25,
-        "re_utilisation":          0.20,
-        "import_dependency":       0.20,
-        "fuel_waste_reduction":    0.20,
-        "gas_self_sufficiency":    0.15,
-    },
-    "Energy Security (Import & Gas Focus)": {
-        "transmission_efficiency": 0.15,
-        "re_utilisation":          0.10,
-        "import_dependency":       0.35,
-        "fuel_waste_reduction":    0.10,
-        "gas_self_sufficiency":    0.30,
-    },
-    "Grid & Transmission Efficiency": {
-        "transmission_efficiency": 0.35,
-        "re_utilisation":          0.10,
-        "import_dependency":       0.15,
-        "fuel_waste_reduction":    0.30,
-        "gas_self_sufficiency":    0.10,
-    },
-    "Renewable & Clean Transition": {
-        "transmission_efficiency": 0.20,
-        "re_utilisation":          0.40,
-        "import_dependency":       0.15,
-        "fuel_waste_reduction":    0.15,
-        "gas_self_sufficiency":    0.10,
+        "weights": {
+            "grid_efficiency": 0.50,
+            "re_utilisation": 0.15,
+            "import_independence": 0.20,
+            "gas_self_sufficiency": 0.15,
+        },
+        "desc": "Wires and transformers first: cut the electricity that never reaches anyone.",
     },
 }
 
-# ── Fuel Stream Mapping to Database source_name ──────────────────────────────
-FUEL_STREAM_MAP = {
-    "Natural Gas": ["Gas"],
-    "LNG Imports": ["LNG Imports"],
-    "Coal": ["Coal"],
-    "Oil & Petroleum": ["Oil", "LPG"],
-    "Nuclear": ["Nuclear Electricity"],
-    "Hydro": ["Hydro Electricity"],
-    "Renewables": ["Renewable Electricity"],
-    "Imported Power": ["Imported Electricity"],
-}
+DEFAULT_STRATEGY = "All four parts equally"
 
-# ── Palette ─────────────────────────────────────────────────────────────────
-GREEN   = "#10B981"
-BLUE    = "#00A6FB"
-AMBER   = "#F59E0B"
-RED     = "#EF4444"
-PURPLE  = "#A78BFA"
-TEAL    = "#14B8A6"
-CYAN    = "#06B6D4"
-ORANGE  = "#F97316"
-ROSE    = "#F43F5E"
-LIME    = "#84CC16"
+# --- Palette ------------------------------------------------------------------
+GREEN = "#10B981"
+BLUE = "#00A6FB"
+AMBER = "#F59E0B"
+RED = "#EF4444"
+PURPLE = "#A78BFA"
+TEAL = "#14B8A6"
+CYAN = "#06B6D4"
+ORANGE = "#F97316"
+ROSE = "#F43F5E"

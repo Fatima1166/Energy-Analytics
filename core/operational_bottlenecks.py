@@ -330,82 +330,82 @@ def score_bottlenecks(df: pd.DataFrame, base_year: int = DEFAULT_BASE_YEAR) -> p
     items = [
         {
             "id": "fossil_cf",
-            "name": "Thermal Fleet Under-Utilisation",
+            "name": "Fossil plant sits idle",
             "family": "fossil",
             "metric_value": gv("fossil_cf_pct"),
             "metric_unit": "% cap factor",
             "severity": _severity_from_pct(gv("fossil_cf_pct"), UTILISATION_BANDS["fossil_cf_pct"]),
-            "note": "Coal/gas/nuclear plant that is built but not run -- locked-in "
-                    "capability, typically starved of fuel or dispatched down by cost.",
+            "note": "Coal, gas and nuclear plant that is built but barely run -- "
+                    "usually short of affordable fuel or slowed down on cost.",
         },
         {
             "id": "gas_gap",
-            "name": "Domestic Gas Supply Shortfall",
+            "name": "Not enough home gas",
             "family": "fossil",
             "metric_value": gv("gas_self_suff_pct"),
             "metric_unit": "% self-sufficient",
             "severity": _severity_from_pct(gv("gas_self_suff_pct"), (20.0, 100.0)),
-            "note": "Indigenous production below consumption forces costlier LNG "
-                    "imports and idles gas-fired capacity.",
+            "note": "Home gas fields fall short of what is used, so costlier LNG "
+                    "has to be bought and gas plant stands idle.",
         },
         {
             "id": "fossil_import",
-            "name": "Fossil Import Dependence",
+            "name": "Fuel bought from abroad",
             "family": "fossil",
             "metric_value": gv("fossil_import_dep_pct"),
             "metric_unit": "% of fossil supply",
             "severity": _severity_from_ratio(gv("fossil_import_dep_pct"), 90.0, 10.0),
-            "note": "Share of oil / gas / coal / LNG requirement met from abroad -- "
-                    "exposure to price and shipping shocks.",
+            "note": "Share of oil, gas and coal met from overseas -- open to world "
+                    "price and shipping shocks.",
         },
         {
             "id": "re_cf",
-            "name": "Renewable Capacity Not Converting",
+            "name": "Clean plant under-used",
             "family": "renewable",
             "metric_value": gv("re_cf_pct"),
             "metric_unit": "% cap factor",
             "severity": _severity_from_pct(gv("re_cf_pct"), UTILISATION_BANDS["re_cf_pct"]),
-            "note": "Installed hydro / wind / solar / bagasse delivering well under "
-                    "nameplate -- resource variability and grid-integration limits.",
+            "note": "Hydro, wind, solar and bagasse making well under their size -- "
+                    "weather and grid limits, not money.",
         },
         {
             "id": "solar_cf",
-            "name": "Solar Intermittency",
+            "name": "Solar is day-only",
             "family": "renewable",
             "metric_value": gv("solar_cf_pct"),
             "metric_unit": "% cap factor",
             "severity": _severity_from_pct(gv("solar_cf_pct"), (6.0, 30.0)),
-            "note": "Day-only, weather-dependent output; low capacity factor is "
-                    "structural for PV and needs storage / firming.",
+            "note": "Sun only part of the day and weather-dependent, so solar runs "
+                    "low; storage or firm backup is needed.",
         },
         {
             "id": "wind_cf",
-            "name": "Wind Variability",
+            "name": "Wind comes and goes",
             "family": "renewable",
             "metric_value": gv("wind_cf_pct"),
             "metric_unit": "% cap factor",
             "severity": _severity_from_pct(gv("wind_cf_pct"), (10.0, 45.0)),
-            "note": "Resource-driven swings in wind output constrain firm supply.",
+            "note": "Wind swings year to year, so steady supply from it is hard.",
         },
         {
             "id": "hydro_cf",
-            "name": "Hydro Flow / Seasonality",
+            "name": "Hydro needs water",
             "family": "renewable",
             "metric_value": gv("hydel_cf_pct"),
             "metric_unit": "% cap factor",
             "severity": _severity_from_pct(gv("hydel_cf_pct"), (15.0, 55.0)),
-            "note": "Run-of-river and reservoir output tracks water availability; "
-                    "dry seasons cut delivered hydro energy.",
+            "note": "Hydro output follows the water; dry seasons cut the energy it "
+                    "can deliver.",
         },
         {
             "id": "td_loss",
-            "name": "T&D Delivery Losses",
+            "name": "Power lost in delivery",
             "family": "delivery",
             "metric_value": gv("td_loss_pct"),
             "metric_unit": "% of generation",
             "severity": _severity_from_ratio(gv("td_loss_pct"), 25.0, 8.0),
-            "note": "Energy generated but never reaching consumers through the grid -- "
-                    "a cross-cutting supply-delivery bottleneck.",
+            "note": "Power made but never reaching consumers through the wires -- "
+                    "cuts the supply of every source.",
         },
     ]
 

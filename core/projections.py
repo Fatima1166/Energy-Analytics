@@ -8,6 +8,8 @@ Emission factors are tCO2/MWh, so CO2_t = gen_GWh * 1000 * emission_factor.
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from config.settings import SCENARIOS, EMISSION_FACTORS, LNG_SAVING_PER_GAS_TWH_MUSD
@@ -25,6 +27,35 @@ def _num(value) -> float:
     return 0.0 if out != out else out          # NaN check without numpy
 
 
+def _read(value) -> float:
+    """History reading: a number the source wrote, else NaN.
+
+    A NULL cell means the year was never reported.  Turning it into 0.0 would
+    print "solar generated nothing in 1999", which is a claim the record does
+    not make -- 0 is a reading, absence is not.
+    """
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    return out if out == out else float("nan")
+
+
+def _sum_known(values) -> float:
+    """Sum the readings that exist; NaN when none of them do."""
+    known = [v for v in values if not math.isnan(v)]
+    return float(sum(known)) if known else float("nan")
+
+
+def _last_known(rows: list, key: str):
+    """Last history row that reported `key`, with the year that reported it."""
+    for r in reversed(rows):
+        v = r.get(key)
+        if v is not None and not math.isnan(v):
+            return float(v), int(r["calendar_year"])
+    return float("nan"), 0
+
+
 def _co2_t(coal_gwh: float, gas_gwh: float, ef: dict) -> float:
     """tCO2 from coal + gas generation expressed in GWh."""
     return (coal_gwh * ef.get("coal", 0.0) + gas_gwh * ef.get("gas", 0.0)) * MWH_PER_GWH
@@ -40,7 +71,7 @@ def project_renewable(
 ) -> pd.DataFrame:
     """
     Project renewable and fossil generation from the last historical year
-    (2024) to `end_year`. Returns both Actual and Projected rows, all in base
+    (FY2025-26 for generation in the current dump) to `end_year`. Returns both Actual and Projected rows, all in base
     units: generation in GWh, capacity in MW, CO2 in tonnes, savings in M USD.
     """
     ef = emission_factors if emission_factors else EMISSION_FACTORS
@@ -50,19 +81,41 @@ def project_renewable(
     last_year = int(last["calendar_year"])
 
     # ---------------- Historical rows (base units) ----------------
+    # A column the whole table leaves NULL (other renewables) is not a source we
+    # can require; it is dropped from the "which parts should be here" test
+    # first, so only genuinely partly-reported years get blanked.
+    present_cols = {c for c in ("gen_solar_gwh", "gen_wind_gwh", "gen_hydro_gwh",
+                                 "gen_other_renewables_gwh", "gen_coal_gwh",
+                                 "gen_gas_gwh", "gen_nuclear_gwh")
+                    if c in df_sorted.columns
+                    and pd.to_numeric(df_sorted[c], errors="coerce").notna().any()}
     hist_rows = []
     for _, r in df_sorted.iterrows():
-        sol = _num(r.get("gen_solar_gwh"))
-        wnd = _num(r.get("gen_wind_gwh"))
-        hyd = _num(r.get("gen_hydro_gwh"))
-        oth = _num(r.get("gen_other_renewables_gwh"))
-        col = _num(r.get("gen_coal_gwh"))
-        gas = _num(r.get("gen_gas_gwh"))
-        nuc = _num(r.get("gen_nuclear_gwh"))
-        dem = _num(r.get("demand_gwh"))
-        cap = _num(r.get("capacity_mw"))
-        re_tot = sol + wnd + hyd + oth
-        tot_gen = re_tot + col + gas + nuc
+        sol = _read(r.get("gen_solar_gwh"))
+        wnd = _read(r.get("gen_wind_gwh"))
+        hyd = _read(r.get("gen_hydro_gwh"))
+        oth = _read(r.get("gen_other_renewables_gwh"))
+        col = _read(r.get("gen_coal_gwh"))
+        gas = _read(r.get("gen_gas_gwh"))
+        nuc = _read(r.get("gen_nuclear_gwh"))
+        dem = _read(r.get("demand_gwh"))
+        cap = _read(r.get("capacity_mw"))
+        re_tot = _sum_known([sol, wnd, hyd, oth])
+        tot_gen = _sum_known([sol, wnd, hyd, oth, col, gas, nuc])
+        # Only the sources this table actually reports have to be present.
+        read = {"solar_gwh": sol, "wind_gwh": wnd, "hydro_gwh": hyd,
+                "other_gwh": oth, "coal_gwh": col, "gas_gwh": gas,
+                "nuclear_gwh": nuc}
+        parts_ok = all(not math.isnan(read[k])
+                       for k, c in (("solar_gwh", "gen_solar_gwh"),
+                                    ("wind_gwh", "gen_wind_gwh"),
+                                    ("hydro_gwh", "gen_hydro_gwh"),
+                                    ("other_gwh", "gen_other_renewables_gwh"),
+                                    ("coal_gwh", "gen_coal_gwh"),
+                                    ("gas_gwh", "gen_gas_gwh"),
+                                    ("nuclear_gwh", "gen_nuclear_gwh"))
+                       if c in present_cols)
+        complete = parts_ok and not math.isnan(dem)
 
         hist_rows.append({
             "calendar_year": int(r["calendar_year"]),
@@ -73,17 +126,21 @@ def project_renewable(
             "coal_gwh": col,
             "gas_gwh": gas,
             "nuclear_gwh": nuc,
-            "demand_gwh": dem if dem > 0 else tot_gen,
+            "demand_gwh": dem,
             "re_gwh": re_tot,
-            "fossil_gwh": col + gas,
+            "fossil_gwh": _sum_known([col, gas]),
             "total_gen_gwh": tot_gen,
-            "re_share_pct": round((re_tot / tot_gen * 100), 2) if tot_gen > 0 else 0.0,
+            "re_share_pct": round(re_tot / tot_gen * 100, 2)
+            if tot_gen > 0 else float("nan"),
             "capacity_mw": cap,
             "co2_t": round(_co2_t(col, gas, ef), 2),
             "fossil_avoided_gwh": 0.0,
             "co2_avoided_t": 0.0,
             "lng_savings_musd": 0.0,
-            "data_type": "Actual",
+            # "Actual" is reserved for a year that reported everything it is
+            # asked to show; an unreported year is tagged "Missing" so charts
+            # skip it instead of drawing a generated zero.
+            "data_type": "Actual" if complete else "Missing",
         })
 
     if not hist_rows:
@@ -96,15 +153,18 @@ def project_renewable(
     g_hydro = sc_conf.get("hydro", 2.0)
     g_other = sc_conf.get("other", 2.0)
 
-    base = hist_rows[-1]
-    base_solar = base["solar_gwh"]
-    base_wind = base["wind_gwh"]
-    base_hydro = base["hydro_gwh"]
-    base_other = base["other_gwh"]
-    base_nuc = base["nuclear_gwh"]
-    base_dem = base["demand_gwh"]
-    base_cap = base["capacity_mw"]
-    base_re_cap_ref = base_solar + base_wind + base_hydro
+    # Each trajectory starts from the last year that genuinely reported the
+    # number, and the year travels with it -- an unreported 2024 does not turn
+    # into a 2024 zero that the forecast then grows.
+    base_solar, _ = _last_known(hist_rows, "solar_gwh")
+    base_wind, _ = _last_known(hist_rows, "wind_gwh")
+    base_hydro, _ = _last_known(hist_rows, "hydro_gwh")
+    base_other = 0.0
+    base_nuc, _ = _last_known(hist_rows, "nuclear_gwh")
+    base_dem, base_dem_year = _last_known(hist_rows, "demand_gwh")
+    base_cap, _ = _last_known(hist_rows, "capacity_mw")
+    base_re_cap_ref = _sum_known([base_solar, base_wind, base_hydro])
+    n_base = max(last_year - base_dem_year, 0)
 
     # ---------------- Projected rows ----------------
     proj_rows = []
@@ -117,7 +177,7 @@ def project_renewable(
         oth = base_other * ((1 + g_other / 100.0) ** n)
         re_tot = sol + wnd + hyd + oth
 
-        dem = base_dem * ((1 + demand_growth / 100.0) ** n)
+        dem = base_dem * ((1 + demand_growth / 100.0) ** (n + n_base))
         nuc = base_nuc * ((1 + 0.015) ** n)
 
         # status-quo baseline used for the "avoided" comparison
@@ -266,23 +326,32 @@ def project_renewable_capacity(cap_df: pd.DataFrame, scenario: str = "Accelerate
         return pd.DataFrame(columns=CAPACITY_COLUMNS)
 
     df = cap_df.copy()
-    df["installed_capacity_mw"] = pd.to_numeric(
-        df["installed_capacity_mw"], errors="coerce").fillna(0.0)
     df["calendar_year"] = pd.to_numeric(df["calendar_year"], errors="coerce")
     df = df.dropna(subset=["calendar_year"])
     df["calendar_year"] = df["calendar_year"].astype(int)
+    # A NULL capacity stays NULL: filling it with 0.0 reads back as "this source
+    # had no plant installed that year", which the record does not say.
+    df["installed_capacity_mw"] = pd.to_numeric(
+        df["installed_capacity_mw"], errors="coerce")
 
     rows = [{"calendar_year": int(r["calendar_year"]),
              "renewable_source": r["renewable_source"],
              "installed_capacity_mw": float(r["installed_capacity_mw"]),
-             "data_type": "Actual"} for _, r in df.iterrows()]
+             "data_type": "Actual" if not pd.isna(r["installed_capacity_mw"])
+             else "Missing"} for _, r in df.iterrows()]
 
     rates = _scenario_rates(scenario, custom_growth)
-    last_actual_year = int(df["calendar_year"].max())
+    reported = df.dropna(subset=["installed_capacity_mw"])
+    last_actual_year = (int(reported["calendar_year"].max())
+                        if not reported.empty
+                        else int(df["calendar_year"].max()))
 
     for source, sdf in df.groupby("renewable_source"):
         sdf = sdf.sort_values("calendar_year")
-        base = sdf.iloc[-1]
+        known = sdf.dropna(subset=["installed_capacity_mw"])
+        if known.empty:
+            continue
+        base = known.iloc[-1]
         base_year = int(base["calendar_year"])
         base_val = float(base["installed_capacity_mw"])
         key = CAPACITY_GROWTH_KEY.get(str(source).strip().lower(), "other")
@@ -299,82 +368,3 @@ def project_renewable_capacity(cap_df: pd.DataFrame, scenario: str = "Accelerate
     return pd.DataFrame(rows).sort_values(["calendar_year", "renewable_source"])
 
 
-def project_system_metrics(combo_df: pd.DataFrame, proj_df: pd.DataFrame,
-                           end_year: int = 2035) -> pd.DataFrame:
-    """
-    Extend the capacity / generation / T&D-loss series to `end_year`.
-
-    Installation capacity follows generation, and the last observed T&D loss
-    ratio is held constant (a documented assumption, not a measured value).
-    """
-    cols = ["calendar_year", "installed_capacity_mw", "generation_gwh",
-            "td_losses_gwh", "data_type"]
-    if combo_df is None or combo_df.empty:
-        return pd.DataFrame(columns=cols)
-
-    df = combo_df.copy().sort_values("calendar_year")
-    for c in ("installed_capacity_mw", "generation_gwh", "td_losses_gwh"):
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-    df["calendar_year"] = pd.to_numeric(df["calendar_year"], errors="coerce")
-    df = df.dropna(subset=["calendar_year"])
-    df["calendar_year"] = df["calendar_year"].astype(int)
-
-    rows = [{**{c: r.get(c) for c in cols if c != "data_type"},
-             "calendar_year": int(r["calendar_year"]), "data_type": "Actual"}
-            for _, r in df.iterrows()]
-
-    gen_rows = df.dropna(subset=["generation_gwh"])
-    if gen_rows.empty:
-        return pd.DataFrame(rows)[cols].sort_values("calendar_year")
-
-    base = gen_rows.iloc[-1]
-    base_gen = float(base["generation_gwh"]) or 0.0
-    base_cap = float(base["installed_capacity_mw"] or 0.0)
-    td_rows = df.dropna(subset=["td_losses_gwh"])
-    loss_ratio = (float(td_rows.iloc[-1]["td_losses_gwh"]) / base_gen
-                  if not td_rows.empty and base_gen else 0.0)
-
-    if proj_df is not None and not proj_df.empty:
-        proj_base = proj_df[proj_df["data_type"] == "Actual"]
-        proj_base_gen = (float(proj_base.iloc[-1]["total_gen_gwh"])
-                         if not proj_base.empty else 0.0)
-        future = proj_df[proj_df["calendar_year"] > int(base["calendar_year"])]
-        for _, r in future.iterrows():
-            gen = float(r.get("total_gen_gwh") or 0.0)
-            scale = (gen / proj_base_gen) if proj_base_gen else 1.0
-            rows.append({
-                "calendar_year": int(r["calendar_year"]),
-                "installed_capacity_mw": round(base_cap * scale, 2),
-                "generation_gwh": round(gen, 2),
-                "td_losses_gwh": round(gen * loss_ratio, 2),
-                "data_type": "Projected",
-            })
-
-    return pd.DataFrame(rows)[cols].sort_values("calendar_year")
-
-
-def merge_co2_vs_re(co2_hist_df: pd.DataFrame, proj_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Reported CO2 history (fact_economic_indicators) plus the scenario-projected
-    CO2 / RE-share, so visual 4 also reaches `end_year`.
-    """
-    cols = ["calendar_year", "re_share_pct", "co2_t", "data_type"]
-    if co2_hist_df is None or co2_hist_df.empty:
-        return pd.DataFrame(columns=cols)
-
-    hist = co2_hist_df.copy().sort_values("calendar_year")
-    rows = [{"calendar_year": int(r["calendar_year"]),
-             "re_share_pct": float(r["re_share_pct"]),
-             "co2_t": float(r["co2_t"]),
-             "data_type": "Actual"} for _, r in hist.iterrows()]
-
-    last_year = int(hist["calendar_year"].max())
-    if proj_df is not None and not proj_df.empty:
-        future = proj_df[proj_df["calendar_year"] > last_year]
-        for _, r in future.iterrows():
-            rows.append({"calendar_year": int(r["calendar_year"]),
-                         "re_share_pct": float(r["re_share_pct"]),
-                         "co2_t": float(r["co2_t"]),
-                         "data_type": "Projected"})
-
-    return pd.DataFrame(rows)[cols].sort_values("calendar_year")

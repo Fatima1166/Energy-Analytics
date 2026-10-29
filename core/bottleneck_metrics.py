@@ -10,9 +10,10 @@ Design rules that fix the previous dashboard's problems
 
 2. HONEST data provenance.  Each annual point is tagged:
        Actual        -- a reported value from the database
-       Estimated     -- interpolated where the source table has a gap
+       Missing       -- the source row is absent, so the year shows blank
        Projected     -- modelled forward beyond the last reported year
-   A gap is never silently filled with 0.
+   A gap is never silently filled with 0 and never carried over from another
+   year: a value only ever appears under the year that produced it.
 
 3. 2035 horizon.  Every series runs 2002 -> 2035 so the charts answer the
    question for the planned-target horizon, and the actual/projected boundary
@@ -44,15 +45,17 @@ from core.targets import (
 ACTUAL = "Actual"
 ESTIMATED = "Estimated"
 PROJECTED = "Projected"
+MISSING = "Missing"          # Power BI style blank — source row absent
 
 PROVENANCE_COLORS = {
     ACTUAL: "#10B981",
     ESTIMATED: "#F59E0B",
     PROJECTED: "#00A6FB",
+    MISSING: "#64748B",
 }
 
 HISTORY_START = 2002
-LAST_REPORTED_IMPORT_YEAR = 2018      # fact_primary_energy_supply import rows stop here
+LAST_REPORTED_IMPORT_YEAR = 2022      # fact_primary_energy_supply import rows stop here (LNG rows FY2022-23 included in the current dump)
 HISTORY_END = 2024                    # last year with real generation/supply data
 DEFAULT_PROJECT_END = 2035
 
@@ -106,22 +109,28 @@ def build_annual_series(overview_df: pd.DataFrame,
         p["calendar_year"] = pd.to_numeric(p["calendar_year"], errors="coerce")
         p = p.dropna(subset=["calendar_year"])
         p["calendar_year"] = p["calendar_year"].astype(int)
-        p["supply_toe"] = pd.to_numeric(p.get("supply_toe"), errors="coerce").fillna(0.0)
-        p["imports_toe"] = pd.to_numeric(p.get("imports_toe"), errors="coerce").fillna(0.0)
+        # No fillna: a NULL cell is a year the source did not report, and a zero
+        # here would read back as "imported nothing that year".
+        p["supply_toe"] = pd.to_numeric(p.get("supply_toe"), errors="coerce")
+        p["imports_toe"] = pd.to_numeric(p.get("imports_toe"), errors="coerce")
 
         name = p.get("source_name", pd.Series("", index=p.index)).astype(str).str.strip().str.lower()
         p["_is_import"] = name.isin(IMPORT_SOURCE_NAMES)
 
-        # Imported volume: prefer the explicit imports column, else the supply column.
+        # Imported volume: prefer the explicit imports column, else the supply
+        # column of that same import row.  Rows that are not an import source
+        # carry no evidence either way, so they stay blank rather than 0 -- the
+        # sum of a year with no import row must be blank, not "0 toe imported".
         p["_import_val"] = p["imports_toe"].where(p["imports_toe"] > 0, p["supply_toe"])
-        p.loc[~p["_is_import"], "_import_val"] = 0.0
+        p.loc[~p["_is_import"], "_import_val"] = float("nan")
 
         agg = p.groupby("calendar_year").agg(
-            supply_toe=("supply_toe", "sum"),
-            import_toe=("_import_val", "sum"),
+            supply_toe=("supply_toe", lambda s: s.sum(min_count=1)),
+            import_toe=("_import_val", lambda s: s.sum(min_count=1)),
         ).reset_index()
         agg["import_pct"] = [
-            _safe_div(i, s) * 100.0 for i, s in zip(agg["import_toe"], agg["supply_toe"])
+            _safe_div(i, s, float("nan")) * 100.0
+            for i, s in zip(agg["import_toe"], agg["supply_toe"])
         ]
         frame = frame.merge(agg, on="calendar_year", how="left")
 
@@ -161,10 +170,20 @@ def build_annual_series(overview_df: pd.DataFrame,
         gen_cols = ["gen_solar_gwh", "gen_wind_gwh", "gen_hydro_gwh",
                     "gen_other_renewables_gwh", "gen_coal_gwh", "gen_gas_gwh",
                     "gen_nuclear_gwh"]
+        re_names = {"gen_solar_gwh", "gen_wind_gwh", "gen_hydro_gwh",
+                    "gen_other_renewables_gwh"}
+        # A fuel column the record never filled is an absent source, not a zero:
+        # dropped before summing.  A year that leaves a reported fuel blank has no
+        # total either (1999 reports no coal, gas or nuclear row).
         for c in gen_cols:
-            r[c] = pd.to_numeric(r.get(c), errors="coerce").fillna(0.0)
-        r["re_gen_gwh"] = r[gen_cols[:4]].sum(axis=1)
-        r["total_gen_gwh"] = r[gen_cols].sum(axis=1)
+            r[c] = pd.to_numeric(r.get(c), errors="coerce")
+        gen_cols = [c for c in gen_cols if r[c].notna().any()]
+        # picked by name, never by position: dropping an absent fuel must not
+        # slide coal up into the renewable slice
+        re_part = [c for c in gen_cols if c in re_names]
+        r["re_gen_gwh"] = (r[re_part].sum(axis=1, min_count=len(re_part))
+                           if re_part else float("nan"))
+        r["total_gen_gwh"] = r[gen_cols].sum(axis=1, min_count=len(gen_cols))
         r["re_share_pct"] = [
             _safe_div(a, b, float("nan")) * 100.0
             for a, b in zip(r["re_gen_gwh"], r["total_gen_gwh"])
@@ -238,9 +257,8 @@ def extend_to_horizon(frame: pd.DataFrame,
     * primary supply      : geometric trend of the last 5 reported years
     * import dependence   : ratio trend fitted on the years that actually
                             report imports (2014-2018), then held to a
-                            documented ceiling; 2019-2024 is labelled
-                            ``Estimated`` because the source rows are absent,
-                            2025+ is ``Projected``.
+                            documented ceiling; 2019-2024 is left blank because
+                            the source rows are absent, 2025+ is ``Projected``.
     * losses %            : 5-year average level with the observed trend damped
     * renewable share     : driven by the generation-mix projection
     * gas                 : production decline and consumption growth extended
@@ -274,8 +292,14 @@ def extend_to_horizon(frame: pd.DataFrame,
     last_sup_idx = df["supply_toe"].last_valid_index()
     if last_sup_idx is not None:
         base_sup = df.at[last_sup_idx, "supply_toe"]
+        last_sup_year = int(df.at[last_sup_idx, "calendar_year"])
+        # Power BI style: gap years inside history stay blank; only years
+        # beyond HISTORY_END are modelled forward as Projected.
         for i in range(last_sup_idx + 1, len(df)):
-            n = i - last_sup_idx
+            yr = int(df.at[i, "calendar_year"])
+            if yr <= HISTORY_END:
+                continue
+            n = yr - last_sup_year
             df.at[i, "supply_toe"] = round(base_sup * (1 + g_supply / 100.0) ** n, 2)
             df.at[i, "supply_toe__type"] = PROJECTED
 
@@ -293,11 +317,19 @@ def extend_to_horizon(frame: pd.DataFrame,
         last_imp_year = int(w["calendar_year"].iloc[-1])
         base_imp_pct = float(w["import_pct"].iloc[-1])
 
-        # 2019 .. HISTORY_END -> Estimated (bridge where source rows are missing)
-        # HISTORY_END+1 .. project_end -> Projected
+        # Power BI style blank: years after last reported up through
+        # HISTORY_END have no source rows -- drop them to NaN, do NOT bridge.
+        _blank = (df["calendar_year"] > last_imp_year) & (df["calendar_year"] <= HISTORY_END)
+        df.loc[_blank, "import_pct"] = float("nan")
+        df.loc[_blank, "import_toe"] = float("nan")
+        df.loc[_blank, "import_pct__type"] = None
+        df.loc[_blank, "import_toe__type"] = None
+
+        # HISTORY_END+1 .. project_end -> Projected (trend continues the last
+        # reported slope, but the historical gap remains visible on the chart).
         for i, yr in enumerate(df["calendar_year"]):
             yr = int(yr)
-            if yr <= last_imp_year:
+            if yr <= HISTORY_END:
                 continue
             n = yr - last_imp_year
             val = min(base_imp_pct + pp_slope * n, 60.0)
@@ -305,8 +337,8 @@ def extend_to_horizon(frame: pd.DataFrame,
             sup_val = _num(df.at[i, "supply_toe"])
             if sup_val:
                 df.at[i, "import_toe"] = round(sup_val * val / 100.0, 2)
-            df.at[i, "import_toe__type"] = ESTIMATED if yr <= HISTORY_END else PROJECTED
-            df.at[i, "import_pct__type"] = ESTIMATED if yr <= HISTORY_END else PROJECTED
+            df.at[i, "import_toe__type"] = PROJECTED
+            df.at[i, "import_pct__type"] = PROJECTED
         df.attrs["import_model"] = {
             "slope_pp_per_year": round(pp_slope, 3),
             "base_year": last_imp_year,
@@ -324,8 +356,19 @@ def extend_to_horizon(frame: pd.DataFrame,
         else:
             slope = 0.0
         slope = max(-1.5, min(1.5, slope))
+        last_los_year = int(df.at[last_los_idx, "calendar_year"])
+        # Blank any interior-history gap; only Project beyond HISTORY_END.
+        _blank = (df["calendar_year"] > last_los_year) & (df["calendar_year"] <= HISTORY_END)
+        df.loc[_blank, "losses_pct"] = float("nan")
+        df.loc[_blank, "losses_toe"] = float("nan")
+        df.loc[_blank, "td_losses_toe"] = float("nan")
+        df.loc[_blank, "losses_pct__type"] = None
+        df.loc[_blank, "losses_toe__type"] = None
         for i in range(last_los_idx + 1, len(df)):
-            n = i - last_los_idx
+            yr = int(df.at[i, "calendar_year"])
+            if yr <= HISTORY_END:
+                continue
+            n = yr - last_los_year
             # Damped improvement: half the observed slope, frozen after 2030.
             eff = min(n, 6)
             val = base_los + slope * eff * 0.5
@@ -360,9 +403,17 @@ def extend_to_horizon(frame: pd.DataFrame,
 
         last_gen_idx = df["total_gen_gwh"].last_valid_index()
         base_gen = _num(df.at[last_gen_idx, "total_gen_gwh"]) if last_gen_idx is not None else 0.0
-
+        last_re_year = int(df.at[re_last, "calendar_year"])
+        # Blank interior-history gaps.
+        _blank = (df["calendar_year"] > last_re_year) & (df["calendar_year"] <= HISTORY_END)
+        for c in ("re_share_pct", "re_gen_gwh", "total_gen_gwh"):
+            df.loc[_blank, c] = float("nan")
+            df.loc[_blank, f"{c}__type"] = None
         for i in range(re_last + 1, len(df)):
-            n = i - re_last
+            yr = int(df.at[i, "calendar_year"])
+            if yr <= HISTORY_END:
+                continue
+            n = yr - last_re_year
             val = min(base_share + slope * n, 95.0)
             df.at[i, "re_share_pct"] = round(val, 2)
             gen_val = base_gen * (1 + g_gen / 100.0) ** n
@@ -391,8 +442,17 @@ def extend_to_horizon(frame: pd.DataFrame,
 
         base_prod = float(pw.iloc[-1])
         base_cons = float(cw.iloc[-1])
+        last_gas_year = int(df.at[gas_last, "calendar_year"])
+        # Blank interior-history gaps.
+        _blank = (df["calendar_year"] > last_gas_year) & (df["calendar_year"] <= HISTORY_END)
+        for c in ("gas_production_bcf", "gas_consumption_bcf", "gas_self_suff_pct"):
+            df.loc[_blank, c] = float("nan")
+            df.loc[_blank, f"{c}__type"] = None
         for i in range(gas_last + 1, len(df)):
-            n = i - gas_last
+            yr = int(df.at[i, "calendar_year"])
+            if yr <= HISTORY_END:
+                continue
+            n = yr - last_gas_year
             prod = base_prod * (1 + g_prod / 100.0) ** n
             cons = base_cons * (1 + g_cons / 100.0) ** n
             df.at[i, "gas_production_bcf"] = round(prod, 2)
@@ -467,7 +527,40 @@ def _reading_for(year: int, key: str, spec: dict, series: pd.DataFrame,
     rows = series[series["calendar_year"] == year]
     if rows.empty:
         return None
-    actual = _num(rows.iloc[0][col])
+    raw = rows.iloc[0].get(col)
+
+    # Power BI style blank: year exists in the frame but the metric has no
+    # source row -- return a reading whose value is NaN so the KPI card can
+    # render an empty cell instead of a misleading 0.
+    if raw is None or pd.isna(raw):
+        return MetricReading(
+            key=key,
+            code=spec["code"],
+            title=spec["title"],
+            short=spec["short"],
+            color=spec["color"],
+            icon=spec["icon"],
+            direction=direction,
+            formula=spec["formula"],
+            area=spec["area"],
+            actual_value=float("nan"),
+            target=target,
+            target_source=tinfo.get("source", "n/a"),
+            target_label=tinfo.get("label", spec["title"]),
+            gap=float("nan"),
+            achievement=float("nan"),
+            yoy=float("nan"),
+            reference_year=int(year),
+            provenance=MISSING,
+            on_track=False,
+            sev={"key": "missing", "label": "No data",
+                 "color": "#64748B", "bg": "rgba(100,116,139,0.14)",
+                 "score": 0.0},
+            history=series[["calendar_year", col, f"{col}__type"]].rename(
+                columns={col: "value", f"{col}__type": "provenance"}),
+        )
+
+    actual = float(raw)
     prov = rows.iloc[0].get(f"{col}__type") or ACTUAL
 
     prev = series[series["calendar_year"] == year - 1]
@@ -549,6 +642,9 @@ def rank_bottlenecks(readings: dict) -> list:
     """
     scored = []
     for key, r in readings.items():
+        if r.actual_value is None or pd.isna(r.actual_value) or pd.isna(r.gap):
+            # Power BI style blank -- not ranked as a bottleneck.
+            continue
         missed = max(0.0, -r.gap)
         # Relative shortfall: 1.0 means "nothing delivered at all".
         relative = 0.0
@@ -587,10 +683,16 @@ def gap_timeline(series: pd.DataFrame, targets: dict) -> pd.DataFrame:
         tinfo = targets.get(metric, {})
         target = _num(tinfo.get("target"))
         direction = tinfo.get("direction", "lower")
-        out[metric] = [
-            (target - v) if direction == "lower" else (v - target)
-            for v in pd.to_numeric(series[col], errors="coerce").fillna(0.0)
-        ]
+        vals = pd.to_numeric(series[col], errors="coerce")
+        gaps = []
+        for v in vals:
+            if pd.isna(v):
+                gaps.append(float("nan"))
+            elif direction == "lower":
+                gaps.append(target - float(v))
+            else:
+                gaps.append(float(v) - target)
+        out[metric] = gaps
     return out
 
 

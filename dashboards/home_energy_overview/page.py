@@ -3,12 +3,11 @@ dashboards/home_energy_overview/page.py -- Executive Landing Command Center
 for the Pakistan National Energy Analytics Platform.
 
 Vibrant, colorful, and institutional design:
-1. Executive Sidebar: System specifications, fast module navigator, live unit slicers.
-2. Executive Command Header: Ambient glowing mesh with color-coded regulatory badges.
-3. Headline KPI Strip: Strictly locked equal-height cards with luminous neon color themes.
-4. Strategic Visualizations: Empirical energy balance, fuel mix, emissions, and generation.
-5. Analytical Architecture Hub: 10 decision modules arranged in balanced 2-column rows with pillar color palettes.
-6. System Lineage & Strategic Policy Briefings: Vibrant multi-hued takeaway cards.
+1. Executive Sidebar: Data coverage, live unit slicers.
+2. Headline KPI Strip: Equal-height cards on the shared header skin, with animated accent edges.
+3. Strategic Visualizations: Energy balance, fuel mix, emissions, and generation.
+4. Question Hub: The 10 dashboards shown side by side in one row per topic.
+5. Key Takeaways: Short policy summary cards.
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ from core.energy_overview import (
     supply_demand_history,
 )
 from core.queries import (
+    Q_CO2,
     Q_ECONOMIC,
     Q_ELEC_GEN,
     Q_ENERGY_OVERVIEW,
@@ -51,7 +51,7 @@ _CHART_CONFIG = {"displayModeBar": False}
 # ══════════════════════════════════════════════════════════════════════════════
 QUESTION_METADATA = {
     "q1": {
-        "pillar": "Pillar I: Macro Dynamics",
+        "pillar": "Supply & Demand",
         "pillar_id": "p1",
         "pillar_color": "#00A6FB",
         "glow_color": "rgba(0, 166, 251, 0.22)",
@@ -62,12 +62,12 @@ QUESTION_METADATA = {
         "btn_to": "#0284C7",
         "tag": "Econometric Modeling",
         "code_display": "Q-01",
-        "short_title": "Parameter Relationships & What-If Forecasts",
-        "strategic_question": "Empirical correlations, rolling elasticity matrix, and multi-variable what-if parameter forecasts to 2035.",
-        "methods": ["Correlation Web", "Driver Elasticity", "What-If Simulation"],
+        "short_title": "Which Indicators Move Together",
+        "strategic_question": "See which energy and economic figures rise or fall together, and how steady those links stay over time.",
+        "methods": ["Correlation Map", "Strongest Links", "Rolling Stability"],
     },
     "q2": {
-        "pillar": "Pillar II: Clean Transition",
+        "pillar": "Clean Energy",
         "pillar_id": "p2",
         "pillar_color": "#10B981",
         "glow_color": "rgba(16, 185, 129, 0.22)",
@@ -78,12 +78,12 @@ QUESTION_METADATA = {
         "btn_to": "#059669",
         "tag": "Scenario Simulation",
         "code_display": "Q-02",
-        "short_title": "Renewable Installation Scenarios",
-        "strategic_question": "Comparative generation mix shifts, CO₂ abatement valuation, and LNG import displacement savings to 2035.",
-        "methods": ["Comparative Simulation", "CO₂ Avoidance", "LNG Bill Savings"],
+        "short_title": "Adding More Solar and Wind",
+        "strategic_question": "Compare what happens if we build more solar and wind: cleaner power and less spent on imported gas.",
+        "methods": ["Scenario Compare", "CO₂ Saved", "Import Bills Saved"],
     },
     "q3": {
-        "pillar": "Pillar III: Infrastructure",
+        "pillar": "Grid & Infrastructure",
         "pillar_id": "p3",
         "pillar_color": "#F59E0B",
         "glow_color": "rgba(245, 158, 11, 0.22)",
@@ -94,12 +94,12 @@ QUESTION_METADATA = {
         "btn_to": "#D97706",
         "tag": "Diagnostic Audit",
         "code_display": "Q-03",
-        "short_title": "Planned Targets & Critical Bottlenecks",
-        "strategic_question": "T&D line losses, fuel import reliance, domestic gas self-sufficiency, and benchmark gap analysis.",
-        "methods": ["T&D Loss Scorecard", "Import Ratios", "Benchmark Audit"],
+        "short_title": "National Targets vs Reality",
+        "strategic_question": "Check national energy targets against what is really happening, and see where the system falls short.",
+        "methods": ["Loss Scorecard", "Import Share", "Target Gap"],
     },
     "q4": {
-        "pillar": "Pillar I: Macro Dynamics",
+        "pillar": "Supply & Demand",
         "pillar_id": "p1",
         "pillar_color": "#00A6FB",
         "glow_color": "rgba(0, 166, 251, 0.22)",
@@ -110,12 +110,12 @@ QUESTION_METADATA = {
         "btn_to": "#0284C7",
         "tag": "Long-Term Forecasting",
         "code_display": "Q-04",
-        "short_title": "Energy Demand Projections to 2035",
-        "strategic_question": "Reported demand (1999–2024), GDP and demographic elasticity drivers, and Low/Base/High pathways to 2035.",
-        "methods": ["GDP Elasticity", "Sector Breakdown", "Pathway Scenarios"],
+        "short_title": "Future Energy Demand",
+        "strategic_question": "How much energy the country will need up to 2035, based on economic growth and population.",
+        "methods": ["GDP Drivers", "Sector Split", "Low / Base / High"],
     },
     "q5": {
-        "pillar": "Pillar I: Macro Dynamics",
+        "pillar": "Supply & Demand",
         "pillar_id": "p1",
         "pillar_color": "#00A6FB",
         "glow_color": "rgba(0, 166, 251, 0.22)",
@@ -126,12 +126,12 @@ QUESTION_METADATA = {
         "btn_to": "#0284C7",
         "tag": "Supply Adequacy",
         "code_display": "Q-05",
-        "short_title": "Primary Supply & Capacity Outlook",
-        "strategic_question": "Primary energy fuel mix trajectories, generation expansion outlook, and capacity reserve adequacy to 2035.",
-        "methods": ["Primary Fuel Trajectory", "Generation Mix", "Reserve Margin"],
+        "short_title": "Future Energy Supply",
+        "strategic_question": "Whether supply and power capacity can keep up with demand up to 2035.",
+        "methods": ["Fuel Trajectory", "Generation Mix", "Spare Capacity"],
     },
     "q6": {
-        "pillar": "Pillar III: Infrastructure",
+        "pillar": "Grid & Infrastructure",
         "pillar_id": "p3",
         "pillar_color": "#F59E0B",
         "glow_color": "rgba(245, 158, 11, 0.22)",
@@ -142,12 +142,12 @@ QUESTION_METADATA = {
         "btn_to": "#D97706",
         "tag": "Supply Chain Efficiency",
         "code_display": "Q-06",
-        "short_title": "Supply Chain & Fuel Optimization",
-        "strategic_question": "Fuel efficiency scorecards, domestic natural gas depletion curve, and renewable curtailment mitigation.",
-        "methods": ["Efficiency Scorecard", "Gas Depletion Index", "RE Curtailment"],
+        "short_title": "Fuel and Supply Chain Efficiency",
+        "strategic_question": "Where fuel is wasted, how fast local gas is running out, and how much clean power we throw away.",
+        "methods": ["Efficiency Scorecard", "Gas Depletion", "Wasted Output"],
     },
     "q7": {
-        "pillar": "Pillar IV: Power Economics",
+        "pillar": "Cost & Dispatch",
         "pillar_id": "p4",
         "pillar_color": "#A78BFA",
         "glow_color": "rgba(167, 139, 250, 0.22)",
@@ -158,12 +158,12 @@ QUESTION_METADATA = {
         "btn_to": "#7C3AED",
         "tag": "Financial Economics",
         "code_display": "Q-07",
-        "short_title": "Power Producer Generation Cost Outlook",
-        "strategic_question": "Purchasing cost bill by technology, fuel price volatility sensitivity, and merit-order tariff avoidance.",
-        "methods": ["Technology Cost Modeling", "Fuel Shock Sensitivities", "Tariff Valuation"],
+        "short_title": "Cost of Power Generation",
+        "strategic_question": "What it costs to buy power from each technology, and how fuel price swings change consumer bills.",
+        "methods": ["Cost by Technology", "Fuel Price Shocks", "Tariff Impact"],
     },
     "q8": {
-        "pillar": "Pillar II: Clean Transition",
+        "pillar": "Clean Energy",
         "pillar_id": "p2",
         "pillar_color": "#10B981",
         "glow_color": "rgba(16, 185, 129, 0.22)",
@@ -174,12 +174,12 @@ QUESTION_METADATA = {
         "btn_to": "#059669",
         "tag": "Strategic Optimization",
         "code_display": "Q-08",
-        "short_title": "Sustainable Energy Development Strategy",
-        "strategic_question": "Four-pillar sustainability index, knapsack policy package solver, and BAU vs optimal pathways to 2035.",
-        "methods": ["4-Pillar Index", "Knapsack Package Solver", "Trade-off Matrix"],
+        "short_title": "Sustainable Energy Strategy",
+        "strategic_question": "The best mix of policies to grow cleanly, compared with carrying on as usual to 2035.",
+        "methods": ["4-Part Index", "Policy Package", "Trade-offs"],
     },
     "q9": {
-        "pillar": "Pillar III: Infrastructure",
+        "pillar": "Grid & Infrastructure",
         "pillar_id": "p3",
         "pillar_color": "#F59E0B",
         "glow_color": "rgba(245, 158, 11, 0.22)",
@@ -190,12 +190,12 @@ QUESTION_METADATA = {
         "btn_to": "#D97706",
         "tag": "Operational Diagnostics",
         "code_display": "Q-09",
-        "short_title": "Operational & Fuel-Supply Bottlenecks",
-        "strategic_question": "Thermal capacity factor underutilization, seasonal gas rationing deficits, and plant dispatch friction.",
-        "methods": ["Capacity Factor Scorecard", "Gas Peaking Deficit", "Take-or-Pay Friction"],
+        "short_title": "Day-to-Day Operating Problems",
+        "strategic_question": "Power plants running below capacity, seasonal gas shortages, and contract rules that waste fuel.",
+        "methods": ["Plant Utilization", "Gas Shortfall", "Take-or-Pay Cost"],
     },
     "q10": {
-        "pillar": "Pillar IV: Power Economics",
+        "pillar": "Cost & Dispatch",
         "pillar_id": "p4",
         "pillar_color": "#A78BFA",
         "glow_color": "rgba(167, 139, 250, 0.22)",
@@ -206,38 +206,38 @@ QUESTION_METADATA = {
         "btn_to": "#7C3AED",
         "tag": "Constrained Optimization",
         "code_display": "Q-10",
-        "short_title": "Constrained Optimal Resource Allocation",
-        "strategic_question": "Constrained water-filling optimization: Least-cost, low-carbon generation dispatch with sector flow limits.",
-        "methods": ["Water-Filling Solver", "Least-Cost Dispatch", "Carbon Constraints"],
+        "short_title": "Cheapest Way to Run Power Plants",
+        "strategic_question": "Work out the lowest-cost, low-carbon way to run power plants while respecting limits for each sector.",
+        "methods": ["Least-Cost Solver", "Dispatch Order", "Carbon Limits"],
     },
 }
 
 PILLARS = [
     {
         "id": "p1",
-        "short_name": "Pillar I: Macro Dynamics",
-        "title": "Pillar I: Macro Dynamics, Supply & Demand",
+        "short_name": "Supply & Demand",
+        "title": "Supply & Demand",
         "color": "#00A6FB",
         "keys": ["q1", "q4", "q5"],
     },
     {
         "id": "p2",
-        "short_name": "Pillar II: Clean Transition",
-        "title": "Pillar II: Clean Transition & Renewable Scenarios",
+        "short_name": "Clean Energy",
+        "title": "Clean Energy",
         "color": "#10B981",
         "keys": ["q2", "q8"],
     },
     {
         "id": "p3",
-        "short_name": "Pillar III: Infrastructure",
-        "title": "Pillar III: Infrastructure, Bottlenecks & Security",
+        "short_name": "Grid & Infrastructure",
+        "title": "Grid & Infrastructure",
         "color": "#F59E0B",
         "keys": ["q3", "q6", "q9"],
     },
     {
         "id": "p4",
-        "short_name": "Pillar IV: Power Economics",
-        "title": "Pillar IV: Power Economics & Optimal Dispatch",
+        "short_name": "Cost & Dispatch",
+        "title": "Cost & Dispatch",
         "color": "#A78BFA",
         "keys": ["q7", "q10"],
     },
@@ -258,85 +258,17 @@ _HOME_CSS = """
     height: 100% !important;
 }
 
-/* ---------------- Executive Command Header ---------------- */
-.exec-header-box {
-    position: relative;
-    border-radius: 12px;
-    padding: 28px 34px 26px 34px;
-    background: radial-gradient(circle at 5% 10%, rgba(0, 166, 251, 0.16) 0%, transparent 45%),
-                radial-gradient(circle at 95% 90%, rgba(16, 185, 129, 0.14) 0%, transparent 45%),
-                linear-gradient(135deg, #0F1626 0%, #131D30 50%, #0D1322 100%);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-top: 3px solid #00A6FB;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    margin-bottom: 22px;
-}
-.exec-status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: #38BDF8;
-    margin-bottom: 10px;
-}
-.exec-status-row .live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #10B981;
-    box-shadow: 0 0 10px #10B981;
-    display: inline-block;
-}
-.exec-header-box h1 {
-    font-size: 28px;
-    font-weight: 800;
-    color: #FFFFFF;
-    letter-spacing: -0.4px;
-    line-height: 1.2;
-    margin: 0 0 8px 0;
-}
-.exec-header-box h1 span.highlight-text {
-    background: linear-gradient(90deg, #38BDF8 0%, #34D399 50%, #FBBF24 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-.exec-header-box p {
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: #94A3B8;
-    max-width: 860px;
-    margin: 0 0 18px 0;
-}
-.exec-spec-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.exec-spec-pill {
-    font-size: 10.5px;
-    font-weight: 700;
-    border-radius: 6px;
-    padding: 5px 12px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-}
-.spec-blue   { background: rgba(0, 166, 251, 0.14); border: 1px solid rgba(0, 166, 251, 0.4); color: #38BDF8; }
-.spec-green  { background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.4); color: #34D399; }
-.spec-amber  { background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.4); color: #FBBF24; }
-.spec-purple { background: rgba(167, 139, 250, 0.14); border: 1px solid rgba(167, 139, 250, 0.4); color: #C4B5FD; }
-
 /* ---------------- Section Divider Title ---------------- */
 .exec-sect-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 30px 0 14px 0;
+    margin: 18px 0 14px 0;
     padding-bottom: 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* The first block sits directly under the shared header card -- keep it tight. */
+.exec-sect-line.sect-first { margin-top: 2px; }
 .exec-sect-line .sect-title-left {
     display: flex;
     align-items: center;
@@ -373,69 +305,62 @@ _HOME_CSS = """
     border-radius: 6px;
 }
 
-/* ---------------- Colorful Strictly Balanced Headline KPI Cards ---------------- */
+/* ---------------- Headline KPI Cards (same skin as the header card) ---------------- */
 .kpi-row-card {
-    border-radius: 10px;
-    padding: 16px 18px 14px 18px;
-    height: 136px !important;
-    min-height: 136px !important;
-    max-height: 136px !important;
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    padding: 14px 18px 15px 18px;
+    height: 128px !important;
+    min-height: 128px !important;
+    max-height: 128px !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    background: linear-gradient(135deg, rgba(26, 32, 44, 0.95) 0%, rgba(14, 17, 23, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+/* Animated accent strip, mirroring the header card's bottom edge. */
+.kpi-row-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2.5px;
+    background: linear-gradient(90deg, var(--acc-a), var(--acc-b), var(--acc-a));
+    background-size: 300% 100%;
+    animation: gradientShift 6s ease infinite;
 }
 .kpi-row-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+    border-color: var(--acc-a);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
 }
 
-/* Card 1: Electric Blue */
-.kpi-card-blue {
-    background: linear-gradient(145deg, rgba(0, 166, 251, 0.15) 0%, rgba(13, 24, 44, 0.95) 45%, rgba(10, 17, 30, 0.98) 100%);
-    border: 1px solid rgba(0, 166, 251, 0.35);
-    border-top: 3.5px solid #00E5FF;
-}
-.kpi-card-blue:hover { border-color: #38BDF8; box-shadow: 0 8px 25px rgba(0, 166, 251, 0.3); }
-.kpi-card-blue .kpi-row-val { color: #38BDF8; text-shadow: 0 0 14px rgba(0, 166, 251, 0.35); }
-.kpi-card-blue .kpi-row-code { background: rgba(0, 166, 251, 0.2); color: #38BDF8; border: 1px solid rgba(0, 166, 251, 0.5); }
+.kpi-card-blue  { --acc-a: #00A6FB; --acc-b: #2ECC71; }
+.kpi-card-amber { --acc-a: #F4A300; --acc-b: #FB7185; }
+.kpi-card-green { --acc-a: #2ECC71; --acc-b: #00A6FB; }
+.kpi-card-red   { --acc-a: #F43F5E; --acc-b: #F4A300; }
 
-/* Card 2: Amber Sunset */
-.kpi-card-amber {
-    background: linear-gradient(145deg, rgba(245, 158, 11, 0.15) 0%, rgba(36, 25, 12, 0.95) 45%, rgba(18, 13, 8, 0.98) 100%);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    border-top: 3.5px solid #F59E0B;
-}
-.kpi-card-amber:hover { border-color: #FBBF24; box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3); }
-.kpi-card-amber .kpi-row-val { color: #FBBF24; text-shadow: 0 0 14px rgba(245, 158, 11, 0.35); }
-.kpi-card-amber .kpi-row-code { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.5); }
+.kpi-card-blue  .kpi-row-val { color: #38BDF8; }
+.kpi-card-amber .kpi-row-val { color: #FBBF24; }
+.kpi-card-green .kpi-row-val { color: #34D399; }
+.kpi-card-red   .kpi-row-val { color: #FB7185; }
 
-/* Card 3: Neon Emerald */
-.kpi-card-green {
-    background: linear-gradient(145deg, rgba(16, 185, 129, 0.15) 0%, rgba(12, 32, 22, 0.95) 45%, rgba(8, 20, 14, 0.98) 100%);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    border-top: 3.5px solid #10B981;
-}
-.kpi-card-green:hover { border-color: #34D399; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3); }
-.kpi-card-green .kpi-row-val { color: #34D399; text-shadow: 0 0 14px rgba(16, 185, 129, 0.35); }
-.kpi-card-green .kpi-row-code { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.5); }
-
-/* Card 4: Rose Crimson */
-.kpi-card-red {
-    background: linear-gradient(145deg, rgba(239, 68, 68, 0.15) 0%, rgba(38, 14, 18, 0.95) 45%, rgba(20, 8, 12, 0.98) 100%);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    border-top: 3.5px solid #F43F5E;
-}
-.kpi-card-red:hover { border-color: #FB7185; box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3); }
-.kpi-card-red .kpi-row-val { color: #FB7185; text-shadow: 0 0 14px rgba(239, 68, 68, 0.35); }
-.kpi-card-red .kpi-row-code { background: rgba(239, 68, 68, 0.2); color: #FB7185; border: 1px solid rgba(239, 68, 68, 0.5); }
+.kpi-card-blue  .kpi-row-code { background: rgba(0, 166, 251, 0.14);  color: #38BDF8; border: 1px solid rgba(0, 166, 251, 0.35); }
+.kpi-card-amber .kpi-row-code { background: rgba(245, 158, 11, 0.14); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.35); }
+.kpi-card-green .kpi-row-code { background: rgba(16, 185, 129, 0.14); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); }
+.kpi-card-red   .kpi-row-code { background: rgba(239, 68, 68, 0.14);  color: #FB7185; border: 1px solid rgba(239, 68, 68, 0.35); }
 
 .kpi-row-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
 }
 .kpi-row-code {
     font-size: 10px;
@@ -444,6 +369,7 @@ _HOME_CSS = """
     font-family: 'JetBrains Mono', monospace;
     padding: 2px 7px;
     border-radius: 4px;
+    flex-shrink: 0;
 }
 .kpi-row-label {
     font-size: 11px;
@@ -451,38 +377,45 @@ _HOME_CSS = """
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: #CBD5E1;
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    line-height: 1.25;
 }
 .kpi-row-val {
-    font-size: 27px;
+    font-size: 24px;
     font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
     letter-spacing: -0.5px;
     line-height: 1.1;
-    margin: 4px 0;
+    margin: 2px 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .kpi-row-val small {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: #94A3B8;
-    margin-left: 6px;
+    margin-left: 5px;
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
 .kpi-row-bottom {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 11px;
+    gap: 6px;
+    font-size: 10.5px;
 }
 .kpi-trend-pill {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
-    padding: 2px 8px;
+    padding: 1px 6px;
     border-radius: 4px;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .kpi-trend-pill.good {
     color: #34D399;
@@ -501,19 +434,20 @@ _HOME_CSS = """
 }
 .kpi-context-note {
     color: #CBD5E1;
-    font-size: 11px;
+    font-size: 10.5px;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/* ---------------- Colorful Module Cards (Equal-Height 2-Column Grid) ---------------- */
+/* ---------------- Colorful Module Cards (One Balanced Row Per Pillar) ---------------- */
 .hub-card {
     border-radius: 10px;
-    padding: 16px 18px 14px 18px;
-    height: 156px !important;
-    min-height: 156px !important;
-    max-height: 156px !important;
+    padding: 14px 16px 14px 16px;
+    height: 212px !important;
+    min-height: 212px !important;
+    max-height: 212px !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
@@ -559,7 +493,8 @@ _HOME_CSS = """
 .hub-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 8px;
     margin-bottom: 6px;
 }
 .hub-code {
@@ -571,10 +506,13 @@ _HOME_CSS = """
     letter-spacing: 0.5px;
 }
 .hub-pillar-tag {
-    font-size: 10.5px;
+    font-size: 9.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
+    line-height: 1.3;
+    text-align: right;
+    flex-shrink: 0;
 }
 .hub-title {
     color: #FFFFFF;
@@ -582,16 +520,17 @@ _HOME_CSS = """
     font-weight: 800;
     line-height: 1.3;
     margin-bottom: 4px;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 .hub-desc {
     color: #94A3B8;
     font-size: 11.5px;
     line-height: 1.45;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
     margin-bottom: 8px;
@@ -599,13 +538,15 @@ _HOME_CSS = """
 .hub-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
+    padding-right: 34px;
 }
 .hub-chip {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
-    padding: 2.5px 8px;
+    padding: 2.5px 7px;
     border-radius: 4px;
+    white-space: nowrap;
 }
 
 /* ---------------- Colorful Action Buttons ---------------- */
@@ -782,10 +723,17 @@ div.stButton > button {
 
 
 def _fmt(val, dec: int = 1) -> str:
-    """Format numeric values safely."""
+    """Format numbers safely, compacting big magnitudes (83.81M, not 83,810,000.0)."""
     if val is None or not np.isfinite(val):
         return "n/a"
-    return f"{val:,.{dec}f}"
+    v = float(val)
+    if abs(v) >= 1e9:
+        return f"{v / 1e9:,.2f}B"
+    if abs(v) >= 1e6:
+        return f"{v / 1e6:,.2f}M"
+    if abs(v) >= 1e5:
+        return f"{v / 1e3:,.1f}k"
+    return f"{v:,.{dec}f}"
 
 
 def _delta_calc(now, then) -> tuple[str, str]:
@@ -795,7 +743,27 @@ def _delta_calc(now, then) -> tuple[str, str]:
     pct = (now / then - 1.0) * 100.0
     arrow = "▲" if pct >= 0 else "▼"
     cls = "good" if pct >= 0 else "bad"
-    return (f"{arrow} {abs(pct):.1f}% · 10-YR", cls)
+    return (f"{arrow} {abs(pct):.1f}% / 10y", cls)
+
+
+def _year_chip(year) -> str:
+    """The year a figure really came from.  Every card wears the year of its own
+    reading, so a label never claims a year the value is not from (Rule 4)."""
+    try:
+        y = int(year)
+    except (TypeError, ValueError):
+        return "no reading"
+    return str(y) if y and np.isfinite(year) else "no reading"
+
+
+def _top_mix(mix, n: int = 2):
+    """(text, year) for the biggest n reported sources, or (None, None)."""
+    if mix is None or mix.empty:
+        return None, None
+    top = mix.head(n)
+    text = " &bull; ".join(
+        f"{row.source_name} {row.share_pct:.0f}%" for row in top.itertuples())
+    return text, int(mix["calendar_year"].iloc[0])
 
 
 def sidebar() -> None:
@@ -803,22 +771,22 @@ def sidebar() -> None:
     st.sidebar.markdown("""
     <div class="sidebar-brand-card">
         <div class="sbc-title">Pakistan Energy Analytics</div>
-        <div class="sbc-sub">National Executive Decision Center</div>
-        <div class="sbc-status"><span class="status-dot"></span> REPOSITORY ONLINE &bull; PORT 3306</div>
+        <div class="sbc-sub">National Energy Dashboard</div>
+        <div class="sbc-status"><span class="status-dot"></span> DATABASE ONLINE &bull; PORT 3306</div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.sidebar.markdown('<div class="dsh-side-title">Warehouse Specs</div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<div class="dsh-side-title">Data Coverage</div>', unsafe_allow_html=True)
     st.sidebar.markdown("""
     <div class="sb-spec-box">
-        <div class="sb-spec-row"><span>Baseline Span</span><b>2000–2024 (25 Yrs)</b></div>
-        <div class="sb-spec-row"><span>Scenario Horizon</span><b>2025–2035 Outlook</b></div>
-        <div class="sb-spec-row"><span>Regulatory Ingestion</span><b>5 Authorities</b></div>
-        <div class="sb-spec-row"><span>Decision Suites</span><b>10 Systems</b></div>
+        <div class="sb-spec-row"><span>History</span><b>2000–2024 (25 Yrs)</b></div>
+        <div class="sb-spec-row"><span>Forecasts</span><b>2025–2035</b></div>
+        <div class="sb-spec-row"><span>Data Sources</span><b>5 Authorities</b></div>
+        <div class="sb-spec-row"><span>Dashboards</span><b>10 Analyses</b></div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.sidebar.markdown('<div class="dsh-side-title">Display Units</div>', unsafe_allow_html=True)
+    # The slicer draws its own "Unit Selection" heading, like every other dashboard.
     render_sidebar_unit_slicer(["energy", "electricity", "emission"], in_expander=False)
 
 
@@ -832,12 +800,13 @@ def render() -> None:
     re = run_query(Q_RENEWABLE_ENERGY)
     ps = run_query(Q_PRIMARY_SUPPLY)
     ec = run_query(Q_ECONOMIC)
+    co2 = run_query(Q_CO2)
 
     hist_sd = supply_demand_history(ov)
-    hist_co2 = co2_history(ec)
+    hist_co2 = co2_history(ec, co2)
     hist_gen = generation_history(ge)
     mix = fuel_mix_latest(ps)
-    snap = headline_snapshot(ov, ge, re, ec)
+    snap = headline_snapshot(ov, ge, re, ec, co2)
     rc = record_counts(hist_sd, hist_co2, mix)
 
     # Units
@@ -849,38 +818,19 @@ def render() -> None:
     u_co2 = units.get("emission", "t")
     f_co2 = display_factor("emission", u_co2)
 
-    # ---------------- 2. Executive Command Header ----------------
-    period_str = f"{rc['first_year']}–{rc['last_year']}" if rc.get("first_year") else "2000–2024"
-    st.markdown(f"""
-    <div class="exec-header-box">
-        <div class="exec-status-row">
-            <span class="live-dot"></span>
-            LIVE REPOSITORY &bull; BASELINE {rc.get('last_year', 2024)} &bull; OUTLOOK HORIZON 2035
-        </div>
-        <h1>Pakistan National Energy Analytics <span class="highlight-text">Command Center</span></h1>
-        <p>
-            Enterprise decision-support intelligence platform integrating 25 years of multi-source historical energy balances with dynamic scenario forecasting, transmission bottleneck diagnostics, tariff financial risk modeling, and constrained least-cost resource optimization.
-        </p>
-        <div class="exec-spec-strip">
-            <span class="exec-spec-pill spec-blue">Sources: NTDC &bull; NEPRA &bull; World Bank &bull; EIA &bull; HDIP</span>
-            <span class="exec-spec-pill spec-green">Time-Series: {period_str} (25 Years)</span>
-            <span class="exec-spec-pill spec-amber">Analytics: 10 Decision Modules</span>
-            <span class="exec-spec-pill spec-purple">Unit Engine: Multi-Domain Slicing</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ---------------- 3. Colorful Strictly Balanced Headline KPI Cards ----------------
+    # ---------------- 2. Colorful Strictly Balanced Headline KPI Cards -------
+    # (the page header is the shared top-header card rendered by app.py)
+    # ----------------------------------------------------------------------
     st.markdown("""
-    <div class="exec-sect-line">
+    <div class="exec-sect-line sect-first">
         <div class="sect-title-left">
             <div class="sect-bar"></div>
             <div>
-                <h2>National Energy Balance Indicators</h2>
-                <p>Latest empirical warehouse values benchmarked against a 10-year historical trajectory</p>
+                <h2>National Energy Snapshot</h2>
+                <p>Latest figures, compared with where they stood 10 years ago</p>
             </div>
         </div>
-        <div class="sect-badge">Macro Baseline Snapshot</div>
+        <div class="sect-badge">At a Glance</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -892,16 +842,19 @@ def render() -> None:
         sup_then = snap.get("supply_then")
         pill_txt, pill_cls = _delta_calc(sup_now, sup_then)
         val_str = _fmt(sup_now * f_energy if sup_now else None)
+        mix_note, mix_year = _top_mix(mix)
+        sup_ctx = (f"{mix_note} \u2022 {mix_year}" if mix_note
+                   else "no reported mix")
         st.markdown(f"""
         <div class="kpi-row-card kpi-card-blue">
             <div class="kpi-row-top">
                 <span class="kpi-row-code">[TPES]</span>
-                <span class="kpi-row-label">Primary Supply</span>
+                <span class="kpi-row-label">Primary Supply \u00b7 {_year_chip(snap.get('supply_year'))}</span>
             </div>
             <div class="kpi-row-val">{val_str}<small>{u_energy}</small></div>
             <div class="kpi-row-bottom">
                 <span class="kpi-trend-pill {pill_cls}">{pill_txt}</span>
-                <span class="kpi-context-note">Gas 42% &bull; Oil 26%</span>
+                <span class="kpi-context-note">{sup_ctx}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -912,17 +865,21 @@ def render() -> None:
         dem_then = snap.get("demand_then")
         pill_txt, pill_cls = _delta_calc(dem_now, dem_then)
         val_str = _fmt(dem_now * f_energy if dem_now else None)
-        gap_val = ((sup_now - dem_now) / sup_now * 100.0) if (sup_now and dem_now and sup_now > 0) else 34.4
+        gap_ok = (sup_now is not None and dem_now is not None
+                  and np.isfinite(sup_now) and np.isfinite(dem_now) and sup_now > 0)
+        gap_val = (sup_now - dem_now) / sup_now * 100.0 if gap_ok else None
+        gap_txt = (f"Losses: {gap_val:.0f}%" if gap_val is not None
+                   else "no supply/use pair to compare")
         st.markdown(f"""
         <div class="kpi-row-card kpi-card-amber">
             <div class="kpi-row-top">
                 <span class="kpi-row-code">[TFC]</span>
-                <span class="kpi-row-label">Final Consumption</span>
+                <span class="kpi-row-label">Final Consumption \u00b7 {_year_chip(snap.get('demand_year'))}</span>
             </div>
             <div class="kpi-row-val">{val_str}<small>{u_energy}</small></div>
             <div class="kpi-row-bottom">
                 <span class="kpi-trend-pill {pill_cls}">{pill_txt}</span>
-                <span class="kpi-context-note">Loss Gap: {gap_val:.1f}%</span>
+                <span class="kpi-context-note">{gap_txt}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -933,16 +890,22 @@ def render() -> None:
         gen_then = snap.get("generation_then")
         pill_txt, pill_cls = _delta_calc(gen_now, gen_then)
         val_str = _fmt(gen_now * f_elec if gen_now else None)
-        re_pct = snap.get("re_share_pct", 41.0)
+        re_pct = snap.get("re_share_pct")
+        if re_pct is not None and np.isfinite(re_pct):
+            clean_txt = (f"Clean {re_pct:.0f}% \u00b7 "
+                         f"{_year_chip(snap.get('re_share_year'))}")
+            clean_cls = "good"
+        else:
+            clean_txt, clean_cls = "no clean-share reading", "neutral"
         st.markdown(f"""
         <div class="kpi-row-card kpi-card-green">
             <div class="kpi-row-top">
                 <span class="kpi-row-code">[GRID]</span>
-                <span class="kpi-row-label">Power Generation</span>
+                <span class="kpi-row-label">Power Generation \u00b7 {_year_chip(snap.get('gen_year'))}</span>
             </div>
             <div class="kpi-row-val">{val_str}<small>{u_elec}</small></div>
             <div class="kpi-row-bottom">
-                <span class="kpi-trend-pill good">Clean Share: {re_pct:.1f}%</span>
+                <span class="kpi-trend-pill {clean_cls}">{clean_txt}</span>
                 <span class="kpi-context-note">{pill_txt}</span>
             </div>
         </div>
@@ -955,21 +918,33 @@ def render() -> None:
         if co2_now and co2_then and co2_then > 0:
             diff_pct = (co2_now / co2_then - 1.0) * 100.0
             arrow = "▲" if diff_pct >= 0 else "▼"
-            pill_txt = f"{arrow} {abs(diff_pct):.1f}% · 10-YR"
+            pill_txt = f"{arrow} {abs(diff_pct):.1f}% / 10y"
             pill_cls = "bad" if diff_pct > 0 else "good"
         else:
             pill_txt, pill_cls = ("--", "neutral")
         val_str = _fmt(co2_now * f_co2 if co2_now else None)
+        co2_yr = snap.get("co2_year")
+        gen_val = snap.get("generation_gwh")
+        # A carbon-intensity figure only means something when emissions and the
+        # power that caused them are from the same year; otherwise the card says
+        # so rather than dividing two different years' numbers.
+        if (co2_now is not None and gen_val and np.isfinite(co2_now)
+                and np.isfinite(gen_val) and gen_val > 0
+                and co2_yr == snap.get("gen_year")):
+            int_txt = (f"{co2_now / gen_val:.2f} tCO\u2082 per GWh "
+                       f"\u00b7 {_year_chip(co2_yr)}")
+        else:
+            int_txt = "no same-year emissions/power pair"
         st.markdown(f"""
         <div class="kpi-row-card kpi-card-red">
             <div class="kpi-row-top">
                 <span class="kpi-row-code">[CO2]</span>
-                <span class="kpi-row-label">Annual Emissions</span>
+                <span class="kpi-row-label">Annual Emissions \u00b7 {_year_chip(co2_yr)}</span>
             </div>
             <div class="kpi-row-val">{val_str}<small>{u_co2}</small></div>
             <div class="kpi-row-bottom">
                 <span class="kpi-trend-pill {pill_cls}">{pill_txt}</span>
-                <span class="kpi-context-note">1.31 tCO₂/GWh thermal</span>
+                <span class="kpi-context-note">{int_txt}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -980,19 +955,19 @@ def render() -> None:
         <div class="sect-title-left">
             <div class="sect-bar"></div>
             <div>
-                <h2>Strategic National Energy Trajectories</h2>
-                <p>Empirical trajectories computed from 25 years of verified regulatory data</p>
+                <h2>25-Year Energy Trends</h2>
+                <p>How supply, fuels, emissions and power output changed over time</p>
             </div>
         </div>
-        <div class="sect-badge">Empirical Records</div>
+        <div class="sect-badge">History</div>
     </div>
     """, unsafe_allow_html=True)
 
     t1, t2, t3, t4 = st.tabs([
-        "Energy Balance (TPES vs TFC)",
-        "Primary Fuel Carrier Matrix",
-        "Decarbonization & Emissions Trajectory",
-        "Power Generation Output (GWh)",
+        "Supply vs Use",
+        "Fuel Mix",
+        "Emissions",
+        "Power Output",
     ])
 
     with t1:
@@ -1007,16 +982,16 @@ def render() -> None:
             st.markdown(f"""
             <div style="background: linear-gradient(145deg, rgba(0, 166, 251, 0.12) 0%, rgba(13, 22, 38, 0.95) 50%, rgba(10, 16, 26, 0.98) 100%); border: 1px solid rgba(0, 166, 251, 0.3); border-top: 3px solid #00A6FB; border-radius: 8px; padding: 16px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
-                    <div style="font-size: 11px; font-weight: 800; color: #38BDF8; letter-spacing: 0.8px; text-transform: uppercase;">Structural Transformation Gap</div>
+                    <div style="font-size: 11px; font-weight: 800; color: #38BDF8; letter-spacing: 0.8px; text-transform: uppercase;">Energy Lost on the Way</div>
                     <div style="font-size: 24px; font-weight: 800; color: #F8FAFC; font-family: 'JetBrains Mono', monospace; margin: 6px 0; text-shadow: 0 0 10px rgba(0,166,251,0.3);">
-                        34.4% of TPES
+                        34.4% of supply
                     </div>
                     <p style="color: #CBD5E1; font-size: 11.5px; line-height: 1.6; margin: 0;">
-                        The gap between Primary Supply and Final Consumption encompasses thermal generation conversion heat loss (~55-60%), refinery throughput shrinkage, and electricity transmission & distribution (T&D) losses averaging 17-20%.
+                        About a third of the energy we produce never reaches the user. Power plants lose most of it as heat, refining cuts the volume further, and the grid drops another 17-20% while moving electricity.
                     </p>
                 </div>
                 <div style="font-size: 11px; color: #94A3B8; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;">
-                    <b style="color: #38BDF8;">Policy Implication:</b> Upgrading thermal heat-rate efficiencies and reinforcing high-voltage transmission lines mitigates up to 6.2M TOE annually without new power plant additions.
+                    <b style="color: #38BDF8;">Quick win:</b> Better power plants and stronger transmission lines can save about 6.2M TOE a year, with no new plants built.
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1032,7 +1007,7 @@ def render() -> None:
         with c_right2:
             st.markdown("""
             <div style="background: linear-gradient(145deg, rgba(16, 185, 129, 0.12) 0%, rgba(14, 28, 22, 0.95) 50%, rgba(9, 18, 14, 0.98) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-top: 3px solid #10B981; border-radius: 8px; padding: 16px; height: 100%;">
-                <div style="font-size: 11px; font-weight: 800; color: #34D399; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px;">Primary Carrier Distribution</div>
+                <div style="font-size: 11px; font-weight: 800; color: #34D399; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px;">Where Our Energy Comes From</div>
                 <div style="display: flex; flex-direction: column; gap: 7px;">
                     <div style="display: flex; justify-content: space-between; font-size: 11.5px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 4px;">
                         <span style="color: #38BDF8; font-weight: 600;">Natural Gas</span>
@@ -1082,76 +1057,66 @@ def render() -> None:
         <div class="sect-title-left">
             <div class="sect-bar"></div>
             <div>
-                <h2>Analytical Architecture Matrix & Question Hub</h2>
-                <p>Ten decision-grade analytical modules organized across four strategic policy pillars</p>
+                <h2>Explore the 10 Dashboards</h2>
+                <p>Ten analyses grouped into four topics — pick one to open it</p>
             </div>
         </div>
-        <div class="sect-badge">10 Systems Catalog</div>
+        <div class="sect-badge">10 Dashboards</div>
     </div>
     """, unsafe_allow_html=True)
 
+    pillar_labels = [f'{p["short_name"]} ({len(p["keys"])})' for p in PILLARS]
     pillar_filter = st.radio(
-        "Filter Analytical Modules",
-        ["Pillar I: Macro Dynamics (3)",
-         "Pillar II: Clean Transition (2)",
-         "Pillar III: Infrastructure (3)",
-         "Pillar IV: Power Economics (2)"],
+        "Choose a topic",
+        pillar_labels,
         horizontal=True,
         label_visibility="collapsed",
         key="home_pillar_filter",
     )
 
-    filter_map = {
-        "Pillar I: Macro Dynamics (3)": "p1",
-        "Pillar II: Clean Transition (2)": "p2",
-        "Pillar III: Infrastructure (3)": "p3",
-        "Pillar IV: Power Economics (2)": "p4",
-    }
-    selected_p_id = filter_map[pillar_filter]
+    selected_p_id = next(p["id"] for p in PILLARS if pillar_filter.startswith(p["short_name"]))
 
     # Collect questions to display
     pillar_obj = next(p for p in PILLARS if p["id"] == selected_p_id)
     display_keys = pillar_obj["keys"]
 
-    # Render questions in strictly balanced 2-column rows with vibrant theme
-    for i in range(0, len(display_keys), 2):
-        pair = display_keys[i:i + 2]
-        col_left, col_right = st.columns(2)
+    # One balanced row: every question of the pillar sits side by side
+    hub_cols = st.columns(len(display_keys))
 
-        for col, q_key in zip([col_left, col_right], pair):
-            meta = QUESTION_METADATA.get(q_key, {})
-            dash_entry = next((d for d in DASHBOARDS if d["key"] == q_key), None)
-            if not meta or not dash_entry:
-                continue
+    for col, q_key in zip(hub_cols, display_keys):
+        meta = QUESTION_METADATA.get(q_key, {})
+        dash_entry = next((d for d in DASHBOARDS if d["key"] == q_key), None)
+        if not meta or not dash_entry:
+            continue
 
-            with col:
-                chips_html = "".join([
-                    f'<span class="hub-chip" style="background: {meta["chip_bg"]}; color: {meta["chip_text"]}; border: 1px solid {meta["border_color"]};">{m}</span>'
-                    for m in meta["methods"]
-                ])
-                card_bg = (
-                    f"radial-gradient(circle at 10% 0%, {meta['glow_color']} 0%, transparent 65%), "
-                    f"linear-gradient(150deg, rgba(22, 30, 46, 0.96) 0%, rgba(13, 17, 26, 0.98) 100%)"
-                )
+        with col:
+            chips_html = "".join([
+                f'<span class="hub-chip" style="background: {meta["chip_bg"]}; color: {meta["chip_text"]}; border: 1px solid {meta["border_color"]};">{m}</span>'
+                for m in meta["methods"]
+            ])
+            card_bg = (
+                f"radial-gradient(circle at 10% 0%, {meta['glow_color']} 0%, transparent 65%), "
+                f"linear-gradient(150deg, rgba(22, 30, 46, 0.96) 0%, rgba(13, 17, 26, 0.98) 100%)"
+            )
 
-                st.markdown(f"""
-                <a href="?nav={q_key}" target="_self" class="hub-card-link" title="Open {meta['short_title']} Analysis">
-                    <div class="hub-card" style="background: {card_bg}; border: 1px solid {meta['border_color']}; border-left: 4px solid {meta['pillar_color']}; cursor: pointer;">
-                        <div>
-                            <div class="hub-top">
-                                <span class="hub-code" style="background: {meta['glow_color']}; color: {meta['pillar_color']}; border: 1px solid {meta['border_color']};">{meta['code_display']}</span>
-                                <span class="hub-pillar-tag" style="color: {meta['pillar_color']};">{meta['pillar']}</span>
-                            </div>
-                            <div class="hub-title">{meta['short_title']}</div>
-                            <div class="hub-desc">{meta['strategic_question']}</div>
+            st.markdown(f"""
+            <a href="?nav={q_key}" target="_self" class="hub-card-link" title="Open {meta['short_title']}">
+                <div class="hub-card" style="background: {card_bg}; border: 1px solid {meta['border_color']}; border-left: 4px solid {meta['pillar_color']}; cursor: pointer;">
+                    <div>
+                        <div class="hub-top">
+                            <span class="hub-code" style="background: {meta['glow_color']}; color: {meta['pillar_color']}; border: 1px solid {meta['border_color']};">{meta['code_display']}</span>
+                            <span class="hub-pillar-tag" style="color: {meta['pillar_color']};">{meta['pillar']}</span>
                         </div>
-                        <div class="hub-chips">
-                            {chips_html}
-                        </div>
-                        <span class="hub-arrow" style="background: {meta['glow_color']}; color: {meta['pillar_color']}; border: 1px solid {meta['border_color']};">&#x2192;</span>
+                        <div class="hub-title">{meta['short_title']}</div>
+                        <div class="hub-desc">{meta['strategic_question']}</div>
                     </div>
-                </a>
-                """, unsafe_allow_html=True)
+                    <div class="hub-chips">
+                        {chips_html}
+                    </div>
+                    <span class="hub-arrow" style="background: {meta['glow_color']}; color: {meta['pillar_color']}; border: 1px solid {meta['border_color']};">&#x2192;</span>
+                </div>
+            </a>
+            """, unsafe_allow_html=True)
 
 
     # ---------------- 6. System Lineage & Strategic Policy Briefings ----------------
@@ -1160,35 +1125,35 @@ def render() -> None:
         <div class="sect-title-left">
             <div class="sect-bar"></div>
             <div>
-                <h2>Executive Strategic Policy Takeaways</h2>
-                <p>Key macroeconomic implications derived from national energy models</p>
+                <h2>Key Takeaways</h2>
+                <p>What these numbers mean for decisions</p>
             </div>
         </div>
-        <div class="sect-badge">Policy Briefings</div>
+        <div class="sect-badge">Summary</div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("""
     <div class="takeaway-grid">
         <div class="takeaway-card tcard-blue">
-            <div class="lead-tag">[Risk Audit]</div>
-            <h4>Import Exposure & FX Risk</h4>
-            <p>Natural gas and petroleum account for 68% of primary supply. Mitigating circular debt and foreign exchange depletion requires aggressive renewable substitution.</p>
+            <div class="lead-tag">[Risk]</div>
+            <h4>We Depend on Imported Fuel</h4>
+            <p>Gas and oil make up 68% of our energy. Buying them drains foreign currency and feeds circular debt. Replacing them with local renewables helps both problems.</p>
         </div>
         <div class="takeaway-card tcard-green">
             <div class="lead-tag">[Target 2030]</div>
-            <h4>Renewable Transition Runway</h4>
-            <p>Non-hydro renewables (solar/wind) contribute 1.7% of primary supply. Scaling toward the 30% ARE 2030 target avoids up to $3.2B in annual LNG import bills.</p>
+            <h4>Solar and Wind Are Barely Used</h4>
+            <p>Solar and wind give only 1.7% of our energy. Reaching the 30% target by 2030 would save about $3.2B a year in gas import bills.</p>
         </div>
         <div class="takeaway-card tcard-amber">
-            <div class="lead-tag">[Infrastructure]</div>
-            <h4>Transmission Bottlenecks</h4>
-            <p>With 34% structural conversion and delivery losses, southern wind and solar corridor evacuation requires urgent grid synchronous condensers and HVDC upgrades.</p>
+            <div class="lead-tag">[Grid]</div>
+            <h4>The Grid Is the Bottleneck</h4>
+            <p>We lose 34% of energy before it is used. Moving solar and wind power up from the south needs urgent grid upgrades.</p>
         </div>
         <div class="takeaway-card tcard-purple">
             <div class="lead-tag">[Optimization]</div>
-            <h4>Least-Cost Water-Filling</h4>
-            <p>Transitioning from administrative take-or-pay dispatch to mathematical least-cost constrained water-filling (Q10) optimizes baseload and reduces consumer power tariffs.</p>
+            <h4>Run Plants by Cost, Not by Contract</h4>
+            <p>Dispatching power plants in least-cost order instead of on take-or-pay contracts lowers generation cost and cuts consumer tariffs. See dashboard Q10.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)

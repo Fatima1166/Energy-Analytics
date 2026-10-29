@@ -25,6 +25,17 @@ JOIN dim_year y ON e.year_id = y.year_id
 ORDER BY y.calendar_year;
 """
 
+# Total territorial CO2 emissions, Pakistan 1999-2024 (tonnes) -- from the
+# dedicated country table (OWID), which supersedes the economic-indicators
+# co2 column wherever both report a year.
+Q_CO2 = """
+SELECT c.calendar_year, c.co2_emissions_t
+FROM fact_co2_emissions c
+JOIN dim_country dc ON c.country_id = dc.country_id
+WHERE dc.country_name = 'Pakistan'
+ORDER BY c.calendar_year;
+"""
+
 # T&D Losses (GWh)
 Q_TD_LOSSES = """
 SELECT t.year_id, y.calendar_year, t.td_losses_gwh
@@ -138,7 +149,7 @@ JOIN dim_energy_source s ON f.source_id = s.source_id
 ORDER BY y.calendar_year, s.source_name;
 """
 
-# Electricity consumption by end-use sector (GWh) -- reported 2002-2024.
+# Electricity consumption by end-use sector (GWh) -- reported 1999-2024.
 Q_ELEC_SECTOR_CONSUMPTION = """
 SELECT y.calendar_year, d.sector_name, x.consumption_gwh
 FROM fact_elec_sector_consumption x
@@ -156,7 +167,7 @@ JOIN dim_province d ON x.province_id = d.province_id
 ORDER BY y.calendar_year, d.province_name;
 """
 
-# Gas consumption by end-use sector (BCF) -- reported 2013-2018 only.
+# Gas consumption by end-use sector (BCF) -- reported 1999-2024.
 Q_GAS_SECTOR_CONSUMPTION = """
 SELECT y.calendar_year, d.sector_name, x.consumption_bcf
 FROM fact_gas_sector_consumption x

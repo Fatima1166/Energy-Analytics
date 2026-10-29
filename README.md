@@ -52,21 +52,23 @@ energy_dashboard/
 │   ├── projections.py            # Q2 scenario engine
 │   ├── bottleneck_metrics.py     # Q3 projection + gap engine
 │   ├── demand_forecast.py        # Q4 demand history, drivers, scenarios, backtest
-│   ├── supply_forecast.py        # Q5 supply history, technology mix, capacity, adequacy
+│   ├── supply_forecast.py        # Q5 supply history, technology mix, adequacy, backtest
 │   ├── targets.py                # Q3 benchmarks (dim_target + policy override)
 │   ├── styles.py                 # global CSS
 │   └── components.py / icons.py  # UI building blocks (cards, footer)
 ├── dashboards/
 │   ├── registry.py               # dashboard list + each one's unit domains
-│   ├── q2_renewable_scenarios/   # Q2: page, charts, config, README.md, REPORT.md
-│   ├── q3_target_bottlenecks/    # Q3: page, charts, config, README.md
-│   ├── q4_forecast_demand/       # Q4: page, charts, config, README.md
-│   ├── q5_forecast_supply/       # Q5: page, charts, config, README.md
+│   ├── q2_renewable_scenarios/   # Q2: page, charts, config, README.md
+│   ├── q3_target_bottlenecks/    # Q3: page, charts, README.md
+│   ├── q4_forecast_demand/       # Q4: page, charts, README.md
+│   ├── q5_forecast_supply/       # Q5: page, charts, README.md
 │   ├── q6_supply_chain_optimization/ # Q6: page, charts, config, README.md
 │   └── q7_forecast_cost/         # Q7: page, charts, config, README.md
 ├── scripts/
 │   ├── verify_demand_forecast.py # Q4 numbers, printed from live MySQL
 │   ├── verify_supply_forecast.py # Q5 numbers, printed from live MySQL
+│   ├── verify_q7_cost.py         # Q7 numbers + sanity checks, from live MySQL
+│   ├── audit_axes.py             # prints every Q4/Q5/Q6/Q7 axis title
 │   └── smoke_test_app.py         # headless render check of every dashboard
 ├── login_portal/                 # React login portal + Flask API
 │   ├── api_server.py             # Flask API (port 5000)
@@ -77,7 +79,7 @@ energy_dashboard/
 ├── assets/login_hero.jpg         # hero image
 ├── requirements.txt
 ├── UNIT_GUIDE.md                 # unit strategy + formulas + verification
-└── energy_database_new.sql       # MySQL schema + seed data
+└── energy_database_new (1).sql # MySQL schema + seed data (current dump, FY1999-2000..FY2025-26)
 ```
 
 ---
@@ -99,7 +101,7 @@ energy_dashboard/
 ```sql
 CREATE DATABASE energy_database_new;
 USE energy_database_new;
-SOURCE path/to/energy_database_new.sql;
+SOURCE "path/to/energy_database_new (1).sql";
 ```
 
 2. Set your MySQL credentials in `.env` (create if missing):
@@ -200,13 +202,12 @@ view currently on screen.
 
 | KPI / Visual | What it shows |
 |---|---|
-| RE Share % | Renewable share of generation at the range's final year, per scenario |
-| RE Capacity | Installed renewable capacity the scenario builds to |
-| CO₂ Emissions | Emissions remaining at the horizon (auto-scaled t / kt / Mt) |
-| LNG Savings | Cumulative import bill avoided by displacing gas |
-| CO₂ Intensity | Grid carbon intensity, kgCO₂/MWh |
-| Visuals 1–6 | RE share path, generation mix, outcomes, CO₂ vs RE, capacity by source, capacity vs generation vs T&D |
-| Slicers | Scenario, Growth Rate %, Year Range, Unit Selection |
+| Renewable Share | How much of the power is renewable in the range's final year, for the chosen scenario |
+| Renewable Power Built | Clean plant capacity the scenario has to build |
+| CO₂ Avoided | Total emissions the scenario keeps out of the air ("million tonnes of CO₂", auto-scaled) |
+| Gas Import Savings | Money not spent importing gas ("million USD") |
+| Visuals 1–4 | Renewable share over time, where the power comes from, results (one year at a time or all five scenarios), power plants built by source |
+| Slicers | Pick a scenario, Years to show, Unit Selection |
 
 Full details: [`dashboards/q2_renewable_scenarios/README.md`](dashboards/q2_renewable_scenarios/README.md)
 
@@ -220,8 +221,8 @@ Full details: [`dashboards/q2_renewable_scenarios/README.md`](dashboards/q2_rene
 | K2 Import Dependence % | Imported share of primary supply |
 | K3 Renewable Share % | Against the 30% ARE Policy target |
 | K4 Gas Self-Sufficiency % | Domestic production vs consumption |
-| Visuals 1–6 | Loss waterfall, losses vs benchmark, import dependence, gas balance, benchmark gaps, achievement vs benchmark |
-| Slicers | Year Range, Unit Selection |
+| Visuals 1–4 | Where the energy is lost, energy we import, gas made vs gas used, distance to each target |
+| Slicers | Years to show, Unit Selection |
 
 Full details: [`dashboards/q3_target_bottlenecks/README.md`](dashboards/q3_target_bottlenecks/README.md)
 
@@ -231,17 +232,16 @@ Full details: [`dashboards/q3_target_bottlenecks/README.md`](dashboards/q3_targe
 
 | KPI / Visual | What it shows |
 |---|---|
-| K1 Total Demand | Total final energy now and at the horizon, per scenario |
-| K2 Electricity Demand | Grid demand in GWh, now and at the horizon |
-| K3 Demand Growth | Forecast CAGR against the reported CAGR |
-| K4 Income Elasticity | ε from ln(demand/head) ~ ln(real GDP/head), with R² |
-| K5 Supply–Demand Gap | Horizon gap as a share of primary supply, plus the supply CAGR needed to close it |
-| Visuals 1–7 | History 1999–2024, scenario fan 2025–2035, demand drivers, growth decomposition, sector & province mix, supply gap & import dependency, backtest reliability |
-| Slicers | Scenarios, Forecast basis (Driver/Trend), Calibration start, Forecast horizon, Base GDP growth, Scenario spread, Unit Selection |
+| K1 Total Demand | Total energy demand now and at the horizon, per scenario |
+| K2 Electricity Demand | Grid demand, now and at the horizon, with its yearly growth |
+| K3 Demand Growth | Forecast growth a year against the growth the data shows |
+| Visuals 1–5 | Demand so far, the three paths to the horizon, what moves demand, who uses the electricity, how far to trust the forecast |
+| Slicers | Scenarios to show, Forecast up to, Unit Selection |
 
-Eight elements covering the six objectives: history (1), scenarios (2), drivers
-(3), sector and province (4), supply gap and imports (5), backtest MAPE / RMSE /
-R² (6).
+Three cards and five charts, all of them part of the answer to "what will demand
+be?": where demand has been (1), the scenarios (2), the drivers (3), the sectors
+(4) and the accuracy test (5). Supply-side content — gap and import dependency —
+lives on Q5.
 
 Reproduce every figure from the command line:
 
@@ -257,13 +257,15 @@ Full details: [`dashboards/q4_forecast_demand/README.md`](dashboards/q4_forecast
 
 | KPI / Visual | What it shows |
 |---|---|
-| K1 Total Primary Supply | Reported 2024 (75.7 MTOE) vs Horizon 2035 (Base ~93.2 MTOE) and implied CAGR % |
-| K2 Power Generation Supply | Reported 2024 (154,480 GWh) vs Horizon 2035 (Base ~385,837 GWh) |
-| K3 Clean Energy Share % | Clean generation share vs 60% national benchmark & 30% ARE solar+wind target |
-| K4 Installed Capacity | Required installed capacity (MW/GW) across technology assets to 2035 |
-| K5 Reserve Margin Adequacy | Supply vs demand reserve margin % corridor (15%–25% safe corridor, deficit vs trap) |
-| Visuals 1–7 | History 1999–2024, scenario fan 2025–2035, technology mix, capacity expansion (MW), supply adequacy, energy security (indigenous vs imports), backtest reliability |
-| Slicers | Scenarios, Forecast basis (Driver/Trend), Calibration start, Horizon, Base GDP growth, Spread, Clean policy target, Unit Selection |
+| K1 Total primary energy supply | Measured for the year the card names (2024: 75.7 MTOE) and the level at 2035 under the chosen scenario (Base ~93.2 MTOE), with the % change |
+| K2 Electricity generation | Measured for the year the card names (2024: 154,480 GWh) and 2035 (Base ~385,837 GWh), with the yearly growth rate |
+| K3 Does supply cover demand | How far supply sits above or below demand at the horizon, against the comfortable 15%–25% band |
+| Visuals 1–6 | Supply so far, the three paths to the horizon, what the electricity is made of, supply against demand, made at home vs bought abroad, and the accuracy test |
+| Slicers | Scenarios to show, Forecast up to, Unit Selection |
+
+Three cards and six charts, all of them part of the answer to "what will supply
+be?". Installed capacity (MW) is left off on purpose — a build plan is not a
+supply — and the demand the supply is measured against is Q4's subject.
 
 Reproduce every figure from the command line:
 
@@ -273,28 +275,122 @@ Reproduce every figure from the command line:
 
 Full details: [`dashboards/q5_forecast_supply/README.md`](dashboards/q5_forecast_supply/README.md)
 
-### Q6 — Supply Chain Optimization (1999–2024)
+### Q6 — Supply Chain Optimization (2002–2024)
 
 *What is the optimal utilization of fuel and renewable energy supply chains?*
 
 | KPI / Visual | What it shows |
 |---|---|
-| SC1 Composite Score | 0–100 weighted index across grid, RE, import, waste, and gas dimensions |
-| SC2 Transmission Efficiency | Delivered generation efficiency % vs user-configured loss benchmark |
-| SC3 Import Dependency | Imported share of primary supply across selected fuel and power streams |
-| SC4 RE Utilisation Rate | Output to potential ratio across installed renewable assets |
-| SC5 Gas Self-Sufficiency | Domestic gas production vs national consumption ratio (unit-aware) |
-| Visuals 1–8 | Efficiency radar, T&D losses, import split, RE utilisation, gas balance, LNG economics, composite score trend, what-if generation mix simulator |
-| Slicers | Strategy Presets, Analysis Period, Supply Streams Filter, Target RE Share %, Loss Benchmark %, Priority Weights, Unit Selection (Energy, Electricity, Power, Gas) |
+| K1 How well the chains are used | The overall score out of 100, which part the chosen strategy counts hardest, and how many of the four parts it was built from |
+| K2 Electricity that reached people | The share that arrived (82.1% in 2019), the loss behind it and how much of the loss aim was reached |
+| K3 Clean plant made vs what it could make | The share of its year-round potential the clean plant actually made (41.2% in 2024) |
+| Visuals 1–5 | The score and its four parts year by year, electricity lost on the wires, clean plant built and what it made, the gas chain, and what is made now against the target mix |
+| Slicers | Which part counts most, Years to judge, Unit Selection (Electricity, Power, Gas) |
+
+Three cards and five charts: the score and the gas chain share a row, the two
+electricity charts share the next, and the mix spans the page. The score has four
+parts, not five: the old "fuel waste" part was computed from the same
+transmission-loss column as the grid part.
+Where supply comes from is Q5's page and what imported gas costs is Q7's, so the
+import and gas numbers count inside the score but get no charts here.
+
+Check every axis title from the command line:
+
+```powershell
+.venv\Scripts\python.exe scripts\audit_axes.py
+```
 
 Full details: [`dashboards/q6_supply_chain_optimization/README.md`](dashboards/q6_supply_chain_optimization/README.md)
 
+### Q7 — Forecasted Producer Cost (2000–2035)
+
+*What is the forecasted cost of energy power producers?*
+
+| KPI / Visual | What it shows |
+|---|---|
+| K1 What buying electricity cost | The 2024 bill (8.21 USD bn) at an average 53.1 US$ per unit over 154,480 GWh, with the fuel part of it |
+| K2 The bill it points to | The bill at the year asked for under the chosen build-out case (24.01 USD bn at 2035, planned), its growth per year and the gap on 2024 |
+| K3 What one unit costs | The price of one unit at the same year (62.2 US$), up 9.1 from 2024, with the clean share of the mix behind it |
+| Visuals 1–5 | What each source was paid and what a unit cost, the bill's path per build-out case, a step-by-step walk of where the extra money goes, the price of one unit, and the fuel-price band beside the model's own average error |
+| Slicers | Build-out cases to show, Forecast up to, Unit Selection (Cost) |
+
+Three cards and five charts. What a cleaner pathway would *save* is Q8's answer,
+so the avoided-cost card and chart are gone; the purchase-tariff heat-map only
+restated the prices that were fed into the model, and the hold-out table repeated
+the two bars in Visual 5. The bill is worked out from reported generation at
+stated purchase prices — the warehouse holds no producer invoices — and the fuel
+assumption moves the 2035 answer (21.1–27.6 USD bn) about three and a half times
+as much as the choice of build-out case does (23.1–24.9).
+
+Reproduce every figure from the command line:
+
+```powershell
+.venv\Scripts\python.exe scripts\verify_q7_cost.py
+```
+
+Full details: [`dashboards/q7_forecast_cost/README.md`](dashboards/q7_forecast_cost/README.md)
+
+
+### Q8 — Sustainable Strategy (1999–2035)
+
+*What optimal strategy may be opted to make energy development sustainable?*
+
+| KPI / Visual | What it shows |
+|---|---|
+| K1 Where things stand | The latest score out of 100 (71.9) — the year it names (2018) is the latest one all four pillars reported — with each pillar's own year on the rows |
+| K2 What the plan reaches | 94.1 by 2035 under the funded package, against 82.0 if nothing changes — worth +12.1 — with 8 of 13 measures paid for |
+| K3 What the plan costs a year | 7.90 USD bn a year of the 8.0 asked for, 0.10 left over, 5 measures put off |
+| Visuals 1–4 | Each pillar's latest score against ten years earlier, with the year it came from and how many measures back it; all thirteen options ranked by points per $bn, paid-for against put-off; the three paths to the horizon; and what the package adds pillar by pillar |
+| Slicers | What counts most (five presets), Money a year for new measures, Plan up to, Unit Selection (Cost) |
+
+Three cards and four charts in two rows of two, then the funded list. Gone: the
+index trajectory, the cost-impact bubble map and the component diagnostics — each
+redrew a number another
+visual already carries — plus the fourth card, the thirteen-row ledger, four weight
+sliders and an evaluation-year slider that only moved the baseline onto thinner
+evidence.
+
+The headline changed when four engine defects were fixed first: a year with no
+imports reported was read as *zero* imports and scored perfect security; national
+CO₂ was divided by electricity-only generation, so every year scored nought on a
+scope error; the composite renormalised over whatever pillars existed, so the index
+rose as coverage decayed (2024 showed two pillars and scored 84); and the
+projection started from a different 2024 number than the card showed (62.5 against
+69.4). The score is now 70.7 on the page and on the chart.
+
+Reproduce every figure from the command line:
+
+```powershell
+.venv\Scripts\python.exe scripts\verify_q8_strategy.py
+```
+
+Full details: [`dashboards/q8_sustainable_strategy/README.md`](dashboards/q8_sustainable_strategy/README.md)
+
+
+### Missing years & the projection window
+
+A year inside the reported window (up to **2024**) that the database did not
+report prints **blank** — never a zero, never carried over from another year,
+never interpolated. A stored `0` is a real reading; only a missing or NULL value
+blanks.
+
+A card's year label belongs to its value, not to a slider: when a metric has no
+reading for 2024, the card names the latest year its value really came from, or
+says *"no reading"* when there is none at all. "2024" is never printed above a
+number that came from 2018.
+
+Nothing inside the reported window is projected. What the dashboards model
+starts at **2025** and is tagged `Projected` in the data layer (drawn dashed).
+`scripts/verify_missing_year_blanks.py` greps the engines and charts for
+`fillna` / `ffill` / `interpolate` and checks that boundary, so a bridge cannot
+creep back in.
 
 ### Units
 
 Every KPI and chart re-renders in the unit chosen in the sidebar. Q2 offers
 Electricity, Power and Emission; Q3 offers Energy and Gas; Q4 offers Energy and
-Electricity; Q5 offers Energy, Electricity and Power. The sidebar shows only
+Electricity; Q5 offers Energy and Electricity; Q6 offers Electricity, Power and
+Gas; Q7 offers Cost; Q8 offers Cost (the index itself is unitless). The sidebar shows only
 the domains the active dashboard uses — see [UNIT_GUIDE.md](UNIT_GUIDE.md) for
 the formulas and the storage strategy.
 

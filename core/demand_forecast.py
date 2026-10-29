@@ -1180,7 +1180,9 @@ def build_supply_gap(primary_df: pd.DataFrame,
                     merged = supply.merge(
                         path[["calendar_year", "value"]].rename(columns={"value": "demand"}),
                         on="calendar_year", how="left").sort_values("calendar_year")
-                    merged["demand"] = merged["demand"].ffill()
+                    # A year with no demand on this scenario path is dropped, not
+                    # filled from the previous year -- a carried number would be
+                    # drawn under a year it was never produced for.
                     merged = merged.dropna(subset=["demand"])
                     merged["gap"] = merged["supply"] - merged["demand"]
                     merged["gap_pct"] = merged["gap"] / merged["supply"] * 100.0
@@ -1248,8 +1250,9 @@ def build_supply_gap(primary_df: pd.DataFrame,
             balance = cons_proj.merge(
                 prod_proj[["calendar_year", "production_bcf"]],
                 on="calendar_year", how="outer").sort_values("calendar_year")
-            balance["consumption_bcf"] = balance["consumption_bcf"].ffill()
-            balance["production_bcf"] = balance["production_bcf"].ffill()
+            # Both sides are modelled paths, so they should already cover every
+            # year; a hole is dropped rather than carried forward from the year
+            # before it.
             balance = balance.dropna(subset=["consumption_bcf", "production_bcf"])
             balance = balance[balance["consumption_bcf"] > 0]
             projected_dep = np.clip(

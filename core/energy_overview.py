@@ -11,6 +11,8 @@ happens at render time.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -29,31 +31,41 @@ def _year_frame(df: pd.DataFrame, cols: list) -> pd.DataFrame:
 
 
 def supply_demand_history(overview_df: pd.DataFrame) -> pd.DataFrame:
-    """year, total_primary_supply_toe, total_final_consumption_toe, gap_toe."""
+    """year, total_primary_supply_toe, total_final_consumption_toe, gap_toe.
+
+    Power BI style blank -- every reported year stays in the frame even if a
+    metric column is NaN, so the chart can render a line break instead of
+    silently dropping that year from the x-axis.
+    """
     h = _year_frame(
         overview_df,
         ["total_primary_supply_toe", "total_final_consumption_toe"])
     if h.empty:
         return pd.DataFrame()
     h["gap_toe"] = h["total_primary_supply_toe"] - h["total_final_consumption_toe"]
-    return h.dropna(subset=["total_primary_supply_toe",
-                            "total_final_consumption_toe"]).reset_index(drop=True)
+    return h.reset_index(drop=True)
 
 
-def co2_history(econ_df: pd.DataFrame) -> pd.DataFrame:
-    """year + co2_emissions_tonnes for every reported year."""
-    h = _year_frame(econ_df, ["co2_emissions_tonnes"])
-    if h.empty:
-        return pd.DataFrame()
-    return h.dropna(subset=["co2_emissions_tonnes"]).reset_index(drop=True)
+def co2_history(econ_df: pd.DataFrame,
+                co2_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    """year + co2_emissions_tonnes for every reported year (NaN preserved).
+
+    The dedicated country table (fact_co2_emissions, passed as co2_df) is the
+    authoritative CO2 series and covers every reported year; the economic
+    frame's co2 column is used only when that table is missing entirely.
+    Neither is filled or interpolated -- an unreported year stays a blank.
+    """
+    c = _year_frame(co2_df, ["co2_emissions_t"]).rename(
+        columns={"co2_emissions_t": "co2_emissions_tonnes"})
+    if not c.empty:
+        return c[["calendar_year", "co2_emissions_tonnes"]]
+    return _year_frame(econ_df, ["co2_emissions_tonnes"])
 
 
 def generation_history(gen_df: pd.DataFrame) -> pd.DataFrame:
-    """year + generation_gwh for every reported year."""
+    """year + generation_gwh for every reported year (NaN preserved)."""
     h = _year_frame(gen_df, ["generation_gwh"])
-    if h.empty:
-        return pd.DataFrame()
-    return h.dropna(subset=["generation_gwh"]).reset_index(drop=True)
+    return h
 
 
 def fuel_mix_latest(ps_df: pd.DataFrame) -> pd.DataFrame:
@@ -80,7 +92,8 @@ def fuel_mix_latest(ps_df: pd.DataFrame) -> pd.DataFrame:
     return mix
 
 
-def headline_snapshot(overview_df, gen_df, re_df, econ_df) -> dict:
+def headline_snapshot(overview_df, gen_df, re_df, econ_df,
+                      co2_df=None) -> dict:
     """Latest reported values (+ a decade-earlier twin) for the KPI strip.
 
     Keys: year, supply_toe, demand_toe, generation_gwh, co2_t, re_share_pct
@@ -88,7 +101,7 @@ def headline_snapshot(overview_df, gen_df, re_df, econ_df) -> dict:
     """
     sd = supply_demand_history(overview_df)
     g = _year_frame(gen_df, ["generation_gwh"])
-    c = co2_history(econ_df)
+    c = co2_history(econ_df, co2_df)
     re = _year_frame(re_df, ["gen_hydro_gwh", "gen_solar_gwh", "gen_wind_gwh",
                              "gen_other_renewables_gwh", "gen_coal_gwh",
                              "gen_gas_gwh", "gen_nuclear_gwh"])
@@ -110,10 +123,11 @@ def headline_snapshot(overview_df, gen_df, re_df, econ_df) -> dict:
     yr, snap["supply_toe"], snap["supply_then"], snap["supply_then_year"] = _pick(
         sd, "total_primary_supply_toe")
     snap["year"] = yr
-    _, snap["demand_toe"], snap["demand_then"], snap["demand_then_year"] = _pick(
-        sd, "total_final_consumption_toe")
-    _, snap["generation_gwh"], snap["generation_then"], snap["generation_then_year"] = _pick(
-        g, "generation_gwh")
+    snap["supply_year"] = yr
+    (snap["demand_year"], snap["demand_toe"], snap["demand_then"],
+     snap["demand_then_year"]) = _pick(sd, "total_final_consumption_toe")
+    (snap["gen_year"], snap["generation_gwh"], snap["generation_then"],
+     snap["generation_then_year"]) = _pick(g, "generation_gwh")
     snap["co2_year"], snap["co2_t"], snap["co2_then"], snap["co2_then_year"] = _pick(
         c, "co2_emissions_tonnes")
 

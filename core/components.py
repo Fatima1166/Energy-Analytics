@@ -7,7 +7,7 @@ def kpi_card(title, value, unit, delta=None, delta_type="up",
     if delta is not None:
         delta_class = "kpi-delta-up" if delta_type == "up" else "kpi-delta-down"
         delta_icon = icon("up") if delta_type == "up" else icon("down")
-        delta_html = f'<div class="{delta_class}" style="margin-top:auto;">{delta_icon} {delta}</div>'
+        delta_html = f'<div class="{delta_class}">{delta_icon} {delta}</div>'
 
     unit_html = f' <span class="kpi-unit">{unit}</span>' if unit else ""
     return (
@@ -17,6 +17,30 @@ def kpi_card(title, value, unit, delta=None, delta_type="up",
         f'<div class="kpi-value">{value}{unit_html}</div>'
         f'{delta_html}'
         f'</div>'
+    )
+
+
+def conclusion_card(lines, title="Bottom Line"):
+    """Short closing takeaway shown at the end of a dashboard.
+
+    lines -- one or two short plain-English sentences. Each should restate
+    numbers the page has already computed, so the card closes the question
+    without adding a new claim.
+    """
+    if isinstance(lines, str):
+        lines = [lines]
+    rows = "".join(
+        '<div style="display:flex;align-items:flex-start;gap:8px;margin-top:5px;">'
+        '<span style="color:#10B981;font-size:8px;line-height:2.2;">&#9679;</span>'
+        '<span style="color:#D7DEE8;font-size:11.5px;font-weight:500;'
+        f'line-height:1.55;">{line}</span></div>'
+        for line in lines if line
+    )
+    return (
+        '<div class="concl-card">'
+        f'<div class="concl-head">{icon("insights")}<span>{title}</span></div>'
+        f'{rows}'
+        '</div>'
     )
 
 

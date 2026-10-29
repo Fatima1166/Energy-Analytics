@@ -24,13 +24,11 @@ Method
    loop clamps every technology to its resource ceiling and re-spreads the
    remainder over the still-unconstrained pool.  Anything that still cannot
    be served inside the ceilings is reported as an honest shortfall.
-4. The same requirement is allocated under business-as-usual (BAU) -- the
-   reported 2024 mix frozen forward -- so every output carries a
-   BAU -> optimal delta.
-5. A θ sweep between pure-cost and pure-carbon produces the Pareto frontier,
-   and the optimal plan is scored on a six-dimension sustainability radar.
-6. Electricity is carved into end-use sectors in proportion to their reported
-   consumption, giving the source -> sector Sankey allocation view.
+4. The same requirement is allocated the way things stand today (BAU) -- the
+   last reported mix frozen forward -- so every output carries a
+   last-mix -> plan delta.
+5. A sweep from pure-cost to pure-carbon shows what each priority costs and
+   emits, and the plan is then scored on six plain things against that mix.
 
 Pure functions: no Streamlit, no MySQL.  Base units GWh, US$, t, BCF, MW;
 display conversion happens at render time via core.units.
@@ -39,12 +37,12 @@ display conversion happens at render time via core.units.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
 
-from core.cost_forecast import COST_TECHS, TECH_COLORS, UNIT_COST_2024
+from core.cost_forecast import COST_TECHS, unit_cost
 
 # ══════════════════════════════ constants ═══════════════════════════════════
 
@@ -89,12 +87,6 @@ CAPACITY_FACTOR: Dict[str, float] = {
 # efficiency the delivered electricity is ~150 GWh per BCF.
 GWH_PER_BCF_GAS = 150.0
 
-TECH_GROUPS = {  # for the Sankey source ribbon
-    "Hydro": "Hydro", "Solar": "Solar & Wind", "Wind": "Solar & Wind",
-    "Other RE": "Solar & Wind", "Nuclear": "Nuclear",
-    "Coal": "Coal", "Gas": "Gas",
-}
-
 # Ceiling multiples -- how far each resource may stretch beyond its reported
 # era anchor before the water-filling loop clamps it.
 CEILING_RULES = {
@@ -116,6 +108,19 @@ def _num(value, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return default if not math.isfinite(out) else out
+
+
+def _reading(value) -> float:
+    """A history value the source wrote, else NaN.
+
+    Used for the generation base: a NULL cell is an unreported year, not a year
+    that reported zero, and the two must not share the same label.
+    """
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    return out if math.isfinite(out) else float("nan")
 
 
 def _minmax(series: pd.Series) -> pd.Series:
@@ -146,8 +151,7 @@ def co2_factors(ef_df: Optional[pd.DataFrame]) -> Dict[str, float]:
 
 def build_profiles(hist: pd.DataFrame, fuel_infl: float,
                    ef: Dict[str, float], year: int = HORIZON) -> pd.DataFrame:
-    """Static per-technology profile with 2024-anchored cost at the given year."""
-    from core.cost_forecast import unit_cost  # tariff curve for the horizon year
+    """Static per-technology profile with cost at the given year."""
     rows = []
     for tech in COST_TECHS:
         rows.append({
@@ -157,7 +161,13 @@ def build_profiles(hist: pd.DataFrame, fuel_infl: float,
             "import_dep": IMPORT_DEPENDENCE.get(tech, 0.0),
             "cf": CAPACITY_FACTOR.get(tech, 0.4),
             "hist_gwh": _num(hist[GEN_COLS[tech]].max()) if GEN_COLS[tech] in hist.columns else 0.0,
-            "gen_2024": _num(hist.iloc[-1][GEN_COLS[tech]]) if GEN_COLS[tech] in hist.columns else 0.0,
+            # Last reported reading for the technology -- NaN when the column is
+            # never filled (other renewables), so it contributes nothing rather
+            # than a fake zero.
+            "gen_last": (_reading(hist.iloc[-1][GEN_COLS[tech]])
+                         if GEN_COLS[tech] in hist.columns else float("nan")),
+            "gen_year": (int(hist.iloc[-1]["calendar_year"])
+                         if GEN_COLS[tech] in hist.columns else 0),
         })
     return pd.DataFrame(rows)
 
@@ -169,9 +179,10 @@ def resource_ceiling(tech: str, prof_row: pd.Series,
     if rule[0] == "domestic_bcf":
         # Domestic fields plus the RLNG logistics that already serve the gas
         # system: never below the reported-era run stretched by 25%.
-        hist_floor = max(_num(prof_row["hist_gwh"]), _num(prof_row["gen_2024"]), 1.0)
+        hist_floor = max(_num(prof_row["hist_gwh"]),
+                         _num(prof_row["gen_last"], 0.0), 1.0)
         return max(domestic_gas_bcf * GWH_PER_BCF_GAS, hist_floor * 1.25)
-    base = max(_num(prof_row["hist_gwh"]), _num(prof_row["gen_2024"]), 1.0)
+    base = max(_num(prof_row["hist_gwh"]), _num(prof_row["gen_last"], 0.0), 1.0)
     return base * float(rule[1])
 
 
@@ -247,12 +258,14 @@ def score_frame(alloc: Dict[str, float], profiles: pd.DataFrame,
     }
 
 
-# ══════════════════════════ Pareto sweep ═════════════════════════════════════
+# ═══════════════════════ what each priority buys ═══════════════════════════
 
 def pareto_frontier(demand_gwh: float, profiles: pd.DataFrame,
                     caps: pd.Series, util_cost_carbon: pd.Series,
                     steps: int = 21, pressure: float = DEFAULT_PRESSURE) -> pd.DataFrame:
-    """Sweep theta = pure cost (0) -> pure carbon (1); record (cost, CO2)."""
+    """Sweep theta = pure cost (0) -> pure carbon (1); record (cost, CO2).
+    Values stay in base units (US$, t) so the page converts them once, at draw
+    time, like every other frame this engine returns."""
     names = list(profiles["technology"])
     wn = _minmax(profiles["cost_usd_mwh"]).set_axis(names)
     en = _minmax(profiles["co2_t_mwh"]).set_axis(names)
@@ -261,63 +274,31 @@ def pareto_frontier(demand_gwh: float, profiles: pd.DataFrame,
         u = (1.0 - th) * (1.0 - wn) + th * (1.0 - en)
         alloc = water_fill(demand_gwh, u, caps, pressure)
         sc = score_frame(alloc, profiles, demand_gwh)
-        rows.append({"theta": float(th), "cost_bn": sc["cost_usd"] / 1e9,
-                     "co2_mt": sc["co2_t"] / 1e6})
+        rows.append({"theta": float(th), "cost_usd": sc["cost_usd"],
+                     "co2_t": sc["co2_t"]})
     return pd.DataFrame(rows)
 
 
-# ══════════════════════════ sectors & Sankey ═════════════════════════════════
+# ══════════════════════════ how each way scores ═════════════════════════════
 
-def sector_allocation(alloc: Dict[str, float],
-                      sector_hist: Optional[pd.DataFrame]) -> tuple:
-    """
-    Carve the optimised generation into end-use sectors in proportion to the
-    latest reported sector consumption shares.  Returns
-    (sector_frame, sankey_frame): both pandas, all GWh.
-    """
-    total = sum(v for k, v in alloc.items() if not k.startswith("_"))
-    if sector_hist is None or sector_hist.empty or total <= 0:
-        return pd.DataFrame(), pd.DataFrame()
-    last_year = int(sector_hist["calendar_year"].max())
-    last = sector_hist[sector_hist["calendar_year"] == last_year]
-    shares = last.groupby("sector_name")["consumption_gwh"].sum()
-    shares = shares[shares > 0]
-    if shares.empty:
-        return pd.DataFrame(), pd.DataFrame()
-    shares = shares / shares.sum()
-
-    sec_rows = [{"sector": s, "share_pct": float(p) * 100.0,
-                 "demand_gwh": float(p) * total} for s, p in shares.items()]
-    sankey_rows = []
-    for tech, gwh in alloc.items():
-        if tech.startswith("_") or gwh <= 0:
-            continue
-        for s, p in shares.items():
-            sankey_rows.append({"source": f"{TECH_GROUPS.get(tech, tech)}",
-                                "target": str(s), "tech": tech,
-                                "gwh": float(gwh) * float(p)})
-    return pd.DataFrame(sec_rows), pd.DataFrame(sankey_rows)
-
-
-# ══════════════════════════ sustainability radar ════════════════════════
-
-RE_POLICY_TARGET_PCT = 60.0   # ARE-style renewable benchmark for the radar
+RE_POLICY_TARGET_PCT = 60.0   # ARE-style renewable benchmark for the scorecard
 
 
 def radar_frame(bau: dict, opt: dict) -> pd.DataFrame:
-    """Six-dimension 0-100 scores for BAU vs the optimal plan.
-    Fixed references keep the two pathways on one comparable scale."""
+    """Six plain things, scored 0-100 for the last reported mix and for the
+    plan. Fixed references keep the two ways on one comparable scale. The
+    dimension names are what the reader sees on the chart."""
     def _s(score: dict) -> dict:
         gen_mwh = max(score["gen_gwh"], 1.0) * 1000.0
         cost_per_mwh = score["cost_usd"] / gen_mwh
         co2_per_mwh = score["co2_t"] / gen_mwh
         return {
-            "Cost efficiency": max(0.0, 100.0 * (1.0 - cost_per_mwh / 80.0)),
-            "Low carbon": max(0.0, 100.0 * (1.0 - co2_per_mwh / 0.90)),
-            "Fuel security": max(0.0, 100.0 - score["import_dep_pct"]),
-            "Diversity": float((1.0 - score["diversity_hhi"]) * 100.0),
-            "RE share": min(score["re_share_pct"] / RE_POLICY_TARGET_PCT * 100.0, 100.0),
-            "Coverage": min(max(score["coverage_pct"], 0.0), 100.0),
+            "Cheaper power": max(0.0, 100.0 * (1.0 - cost_per_mwh / 80.0)),
+            "Lower CO₂": max(0.0, 100.0 * (1.0 - co2_per_mwh / 0.90)),
+            "Fuel from home": max(0.0, 100.0 - score["import_dep_pct"]),
+            "Source spread": float((1.0 - score["diversity_hhi"]) * 100.0),
+            "Clean share": min(score["re_share_pct"] / RE_POLICY_TARGET_PCT * 100.0, 100.0),
+            "Demand served": min(max(score["coverage_pct"], 0.0), 100.0),
         }
     b, o = _s(bau), _s(opt)
     return pd.DataFrame({"dimension": list(b.keys()),
@@ -330,7 +311,6 @@ def radar_frame(bau: dict, opt: dict) -> pd.DataFrame:
 def build_allocation_data(
     re_df: pd.DataFrame,
     gas_df: Optional[pd.DataFrame] = None,
-    sector_df: Optional[pd.DataFrame] = None,
     ef_df: Optional[pd.DataFrame] = None,
     horizon: int = HORIZON,
     demand_growth_pct: float = DEFAULT_DEMAND_GROWTH,
@@ -338,7 +318,7 @@ def build_allocation_data(
     w_carbon: float = DEFAULT_W_CARBON,
     w_security: float = DEFAULT_W_SECURITY,
     pressure: float = DEFAULT_PRESSURE,
-    fuel_infl_pct: float = 3.0,
+    fuel_infl_pct: float = DEFAULT_FUEL_INFL,
 ) -> dict:
     """Everything the Q10 dashboard renders, from raw query frames."""
     h = re_df.copy()
@@ -346,26 +326,45 @@ def build_allocation_data(
     h = h.dropna(subset=["calendar_year"]).sort_values("calendar_year")
     h = h.reset_index(drop=True)
 
-    base_gen = h[h["calendar_year"] == HISTORY_END]
-    if base_gen.empty:
-        base_gen = h.iloc[[-1]]
-    base = {t: _num(base_gen.iloc[0][GEN_COLS[t]]) for t in COST_TECHS
-            if GEN_COLS[t] in h.columns}
-    total_2024 = _num(base_gen.iloc[0]["demand_gwh"]) if "demand_gwh" in h.columns else 0.0
-    if total_2024 <= 0:
-        total_2024 = sum(base.values())
+    # The mix the plan is measured against comes from the latest year that
+    # genuinely reported generation -- 2024 when it did, an earlier year when it
+    # did not -- and that year is returned so the page can label it correctly.
+    base, base_year = {}, 0
+    for idx in range(len(h) - 1, -1, -1):
+        row = h.iloc[idx]
+        vals = {t: _reading(row[GEN_COLS[t]]) for t in COST_TECHS
+                if GEN_COLS[t] in h.columns}
+        if any(not math.isnan(v) and v > 0 for v in vals.values()):
+            base = {k: v for k, v in vals.items() if not math.isnan(v)}
+            base_year = int(row["calendar_year"])
+            break
+    # Demand on the same year as the mix, so the growth span and the base it
+    # compounds from are one reading, not two different years.
+    total_base = float(sum(base.values())) if base else 0.0
+    if "demand_gwh" in h.columns and base_year:
+        d = _reading(h.loc[h["calendar_year"] == base_year, "demand_gwh"].iloc[0])
+        if not math.isnan(d) and d > 0:
+            total_base = d
 
-    span = max(1, horizon - HISTORY_END)
-    demand = total_2024 * (1.0 + demand_growth_pct / 100.0) ** span
+    span = max(1, horizon - (base_year or HISTORY_END))
+    demand = total_base * (1.0 + demand_growth_pct / 100.0) ** span
 
     domestic_gas_bcf = 0.0
+    gas_reported_year = 0
     if gas_df is not None and not gas_df.empty and "production_bcf" in gas_df.columns:
         g = gas_df.copy()
         g["calendar_year"] = pd.to_numeric(g["calendar_year"], errors="coerce")
         g = g.dropna(subset=["calendar_year"]).sort_values("calendar_year")
-        last_gas = float(g["production_bcf"].fillna(0.0).iloc[-1])
-        # Domestic fields are depleting: plan on the reported trend floor.
-        domestic_gas_bcf = max(last_gas * 0.9, 0.0)
+        g["production_bcf"] = pd.to_numeric(g["production_bcf"], errors="coerce")
+        g = g.dropna(subset=["production_bcf"])
+        if not g.empty:
+            # The last year gas was actually reported -- filling the tail with
+            # zeros would plan national supply on a production the record never
+            # claims.
+            last_gas = float(g["production_bcf"].iloc[-1])
+            gas_reported_year = int(g["calendar_year"].iloc[-1])
+            # Domestic fields are depleting: plan on the reported trend floor.
+            domestic_gas_bcf = max(last_gas * 0.9, 0.0)
 
     profiles = build_profiles(h, fuel_infl_pct, co2_factors(ef_df), year=horizon)
     util = utilities(profiles, w_cost, w_carbon, w_security)
@@ -377,9 +376,10 @@ def build_allocation_data(
 
     opt_alloc = water_fill(demand, util, caps, pressure)
 
-    # BAU: the reported 2024 mix frozen forward onto the same requirement
-    bau_alloc = {t: demand * (base.get(t, 0.0) / sum(base.values()))
-                 for t in COST_TECHS} if sum(base.values()) > 0 else {}
+    # BAU: the reported mix frozen forward onto the same requirement
+    base_total = float(sum(base.values())) if base else 0.0
+    bau_alloc = {t: demand * (base.get(t, 0.0) / base_total)
+                 for t in COST_TECHS} if base_total > 0 else {}
     bau_alloc["_shortfall_gwh"] = 0.0
 
     opt_score = score_frame(opt_alloc, profiles, demand)
@@ -403,7 +403,6 @@ def build_allocation_data(
     alloc_tbl["clamped"] = alloc_tbl["optimal_gwh"] >= alloc_tbl["ceiling_gwh"] - 1e-6
 
     frontier = pareto_frontier(demand, profiles, caps, util, pressure=pressure)
-    sec_tbl, sankey = sector_allocation(opt_alloc, sector_df)
     radar = radar_frame(bau_score, opt_score)
 
     gas_need_bcf = opt_alloc.get("Gas", 0.0) / GWH_PER_BCF_GAS
@@ -417,10 +416,10 @@ def build_allocation_data(
         "opt_score": opt_score,
         "pareto": frontier,
         "radar": radar,
-        "sectors": sec_tbl,
-        "sankey": sankey,
         "demand_gwh": demand,
-        "total_2024_gwh": total_2024,
+        "total_base_gwh": total_base,
+        "base_year": base_year,
+        "gas_reported_year": gas_reported_year,
         "shortfall_gwh": opt_alloc.get("_shortfall_gwh", 0.0),
         "domestic_gas_bcf": domestic_gas_bcf,
         "gas_need_bcf": gas_need_bcf,

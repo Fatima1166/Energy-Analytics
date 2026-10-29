@@ -71,22 +71,21 @@ selected = next(d for d in DASHBOARDS if d["label"] == selected_label)
 st.sidebar.divider()
 
 # ---------------- Header (dynamic per dashboard) ----------------
-# The landing Home dashboard renders its own full-width executive command header.
-if selected.get("key") != "home":
-    dash_title    = selected.get("title",    APP_TITLE)
-    dash_subtitle = selected.get("subtitle", APP_SUBTITLE)
-    dash_icon     = selected.get("icon",     "overview")
+# One shared header card for every dashboard, Home included.
+dash_title    = selected.get("title",    APP_TITLE)
+dash_subtitle = selected.get("subtitle", APP_SUBTITLE)
+dash_icon     = selected.get("icon",     "overview")
 
-    st.markdown(
-        f'<div class="top-header">'
-        f'<div class="header-icon">{icon(dash_icon)}</div>'
-        f'<div>'
-        f'<h1>{dash_title}</h1>'
-        f'<p>{dash_subtitle}</p>'
-        f'</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+st.markdown(
+    f'<div class="top-header">'
+    f'<div class="header-icon">{icon(dash_icon)}</div>'
+    f'<div>'
+    f'<h1>{dash_title}</h1>'
+    f'<p>{dash_subtitle}</p>'
+    f'</div>'
+    f'</div>',
+    unsafe_allow_html=True
+)
 
 dashboard_module = load_dashboard_module(selected["module"])
 
@@ -97,13 +96,13 @@ if callable(sidebar_fn):
 
 # ---------------- 2. Global unit selection ----------------
 # Only the unit families this dashboard actually renders are offered.
-# On the landing page, the Home sidebar handles unit controls directly.
+# Drawn flat in the sidebar (no expander), the same way Home shows them.
 if selected.get("key") != "home":
-    render_sidebar_unit_slicer(selected.get("units"))
+    render_sidebar_unit_slicer(selected.get("units"), in_expander=False)
 
 # ---------------- 3. Dashboard body ----------------
 dashboard_module.render()
 
 # ---------------- Footer ----------------
 st.divider()
-st.caption("Data Sources: World Bank | EIA | Pakistan Energy Yearbook")
+st.caption("Data Sources: Our World in Data | Ember | IMF DataMapper | Pakistan Economic Survey | NEPRA State of the Industry Reports | OGRA reports | HDIP Pakistan Energy Yearbook")

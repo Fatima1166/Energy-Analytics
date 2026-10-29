@@ -73,6 +73,12 @@ PARAMETERS: Dict[str, dict] = {
 FORECAST_KEYS = [k for k, m in PARAMETERS.items() if m["forecast"]]
 CORR_KEYS = list(PARAMETERS.keys())
 
+# Ratios that are computed from other parameters on this page, so a link
+# involving one is partly self-referential (e.g. per-capita demand IS demand
+# divided by population).  They stay in the matrix, ranking and distribution,
+# but are never allowed to become the headline "strongest relationship".
+DERIVED_KEYS = {"pc_demand", "elec_intensity", "re_share", "gas_self_suff"}
+
 GEN_COLS = {
     "Solar": "gen_solar_gwh", "Wind": "gen_wind_gwh", "Hydro": "gen_hydro_gwh",
     "Other RE": "gen_other_renewables_gwh", "Coal": "gen_coal_gwh",
@@ -107,10 +113,19 @@ def build_parameter_frame(
     gas_df: Optional[pd.DataFrame] = None,
     lng_df: Optional[pd.DataFrame] = None,
     overview_df: Optional[pd.DataFrame] = None,
+    co2_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """One annual row per calendar year, one column per tracked parameter,
     all in the storage units declared in PARAMETERS."""
     parts: List[pd.DataFrame] = []
+
+    # The dedicated emissions table (fact_co2_emissions, OWID totals) is the
+    # authoritative CO2 series; the economic frame's co2 column is only a
+    # fallback for years the country table does not cover.
+    c = _clean(co2_df, ["co2_emissions_t"])
+    if not c.empty:
+        parts.append(c.rename(columns={"co2_emissions_t": "co2"})[
+            ["calendar_year", "co2"]])
 
     e = _clean(econ_df, ["gdp_current_usd", "gdp_growth_pct", "population",
                          "co2_emissions_tonnes"])
@@ -121,6 +136,8 @@ def build_parameter_frame(
             gdp_growth=e["gdp_growth_pct"],
             co2=e["co2_emissions_tonnes"],
         )[["calendar_year", "gdp", "population_m", "gdp_growth", "co2"]]
+        if not c.empty:
+            e = e.drop(columns="co2")
         parts.append(e)
 
     r = _clean(re_df, ["demand_gwh"] + list(GEN_COLS.values()))
@@ -212,16 +229,24 @@ def correlation_matrix(df: pd.DataFrame, keys: List[str],
     return pd.DataFrame(mat, index=keys, columns=keys)
 
 
-def strongest_pair(corr: pd.DataFrame) -> Optional[tuple]:
-    """(key_a, key_b, r) of the largest |r| cell in the matrix."""
+def strongest_pair(corr: pd.DataFrame, ignore: Optional[set] = None) -> Optional[tuple]:
+    """(key_a, key_b, r) of the largest |r| cell in the matrix.
+
+    Cells pairing a key listed in `ignore` are skipped, so a derived ratio
+    can never be picked as the headline relationship.
+    """
     if corr is None or corr.empty:
         return None
+    ignore = ignore or set()
     c = corr.where(~np.eye(len(corr), dtype=bool))
+    if ignore:
+        drop = [k for k in c.index if k in ignore]
+        c = c.drop(index=drop, columns=drop)
     if c.notna().sum().sum() == 0:
         return None
     abs_c = c.abs()
     a, b = np.unravel_index(np.nanargmax(abs_c.to_numpy()), abs_c.shape)
-    return corr.index[a], corr.columns[b], float(c.iloc[a, b])
+    return c.index[a], c.columns[b], float(c.iloc[a, b])
 
 
 def pair_samples(corr: pd.DataFrame) -> pd.DataFrame:
@@ -262,12 +287,18 @@ def pairwise_fit(df: pd.DataFrame, x_key: str, y_key: str,
 
 
 def rolling_correlation(df: pd.DataFrame, x_key: str, y_key: str,
-                        window: int = 7) -> pd.DataFrame:
-    """Pearson r of one pair computed over a sliding year window."""
+                        window: int = 7, y0: Optional[int] = None,
+                        y1: Optional[int] = None) -> pd.DataFrame:
+    """Pearson r of one pair computed over a sliding year window.
+
+    The slide stays inside the caller's selected period when y0/y1 are given,
+    so this chart answers the same question as the rest of the page.
+    """
     if df is None or df.empty:
         return pd.DataFrame(columns=["year", "r"])
-    d = _window(df, int(df["calendar_year"].min()),
-                int(df["calendar_year"].max()))
+    lo = int(df["calendar_year"].min()) if y0 is None else int(y0)
+    hi = int(df["calendar_year"].max()) if y1 is None else int(y1)
+    d = _window(df, lo, hi)
     years = [int(y) for y in d["calendar_year"].tolist()]
     rows = []
     for end in years[window - 1:]:
@@ -406,7 +437,7 @@ def forecast_path(df: pd.DataFrame, key: str, fc_row: pd.Series,
 
 def build_relationship_data(
     econ_df=None, re_df=None, gen_df=None, td_df=None,
-    gas_df=None, lng_df=None, overview_df=None,
+    gas_df=None, lng_df=None, overview_df=None, co2_df=None,
     period: tuple = (1999, HISTORY_END),
     pair_x: str = "gdp", pair_y: str = "demand",
     target_key: str = "demand",
@@ -418,13 +449,13 @@ def build_relationship_data(
 ) -> dict:
     """Everything the Q1 dashboard renders, from raw query frames."""
     df = build_parameter_frame(econ_df, re_df, gen_df, td_df,
-                               gas_df, lng_df, overview_df)
+                               gas_df, lng_df, overview_df, co2_df)
     y0 = int(min(period)) if period else int(df["calendar_year"].min())
     y1 = int(max(period)) if period else int(df["calendar_year"].max())
 
     corr = correlation_matrix(df, CORR_KEYS, y0, y1)
     fit = pairwise_fit(df, pair_x, pair_y, y0, y1)
-    roll = rolling_correlation(df, pair_x, pair_y, roll_window) \
+    roll = rolling_correlation(df, pair_x, pair_y, roll_window, y0, y1) \
         if pair_x in df and pair_y in df else pd.DataFrame()
     fc = forecast_parameters(df, None, horizon, gdp_growth_pct,
                              pop_growth_pct, efficiency_pct)
@@ -436,7 +467,7 @@ def build_relationship_data(
     return {
         "frame": df,
         "corr": corr,
-        "strongest": strongest_pair(corr),
+        "strongest": strongest_pair(corr, DERIVED_KEYS),
         "pairs": pair_samples(corr),
         "fit": fit,
         "rolling": roll,

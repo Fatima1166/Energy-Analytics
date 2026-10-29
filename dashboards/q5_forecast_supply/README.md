@@ -1,10 +1,13 @@
-# Q5 — Forecasted Energy Supply (1999–2035)
+# Q5 — Forecasted Energy Supply
 
 **Question:** *What is forecasted energy supply?*
 
-Provides a comprehensive, empirical, and policy-grounded outlook for Pakistan's energy supply from the reported historical era (1999–2024) to the 2035 planning horizon under **Low**, **Base**, and **High** scenarios.
+The page answers it in plain steps: what supply has really been, the three paths
+it can take to 2035, what the electricity is made of, whether it keeps up with
+demand, how much of it is bought from abroad, and how far the guess can be
+trusted.
 
-Engine: [`core/supply_forecast.py`](../../core/supply_forecast.py).  
+Engine: [`core/supply_forecast.py`](../../core/supply_forecast.py).
 Reproduce every figure without opening a browser:
 ```powershell
 .venv\Scripts\python.exe scripts\verify_supply_forecast.py
@@ -14,93 +17,201 @@ Reproduce every figure without opening a browser:
 
 ## 1. How the question is answered
 
-| Objective | Where it is answered |
+| Part of the question | What the dashboard does |
 |---|---|
-| **1. Historical supply trends (1999–2024)** | **E1** KPI strip, **E2** V1 History trajectory (Primary TOE & Power GWh) |
-| **2. Supply forecast to 2035 under Low / Base / High** | **E3** V2 Scenario fan (Primary TOE & Generation GWh) |
-| **3. Fuel & technology supply mix evolution** | **E4** V3 Technology mix vs ARE 30% and 60% Clean Energy targets |
-| **4. Installed generation capacity expansion (MW)** | **E5** V4 Capacity outlook across Hydro, Solar, Wind, Nuclear & Thermal |
-| **5. Supply adequacy & reserve margin vs demand** | **E6** V5 Supply vs demand (GWh) & system reserve margin % corridor |
-| **6. Energy security: indigenous vs imported supply** | **E7** V6 Indigenous energy vs import dependency trajectory |
-| **7. Forecast reliability: hold-out backtesting** | **E8** V7 Hold-out (2021–2024) MAPE %, RMSE, Bias %, R² & model winner |
+| "forecasted" | Three paths — slow, planned and fast supply growth — drawn from the last measured year to the horizon |
+| "energy supply" | Total primary energy and electricity generated, each in real units |
+| "how much, how soon" | KPI cards for supply today, supply at the horizon, and whether it covers demand |
+| "is it enough" | Visual 4 puts the supply line next to the demand line it has to meet |
+| "can we believe it" | Visual 6 tests both models on four years they were not shown |
+
+How much **demand** there will be is [Q4](../q4_forecast_demand/README.md)'s
+answer. This page does not refit it: it carries the last measured demand forward
+at a flat 4.8% a year, only as the line supply is measured against.
 
 ---
 
-## 2. The eight dashboard elements
+## 2. The three KPI cards
 
-| # | Element | What it shows |
+| Code | Card | What it says |
 |---|---|---|
-| **E1** | **KPI strip (5 cards)** | 2024 reported vs 2035 horizon levels for Primary Supply, Power Generation, Clean Share %, Required Capacity (MW), and Reserve Margin Adequacy |
-| **E2** | **V1 Historical trajectory (1999–2024)** | Dual panel: Primary Energy Supply by fuel source (TOE) and Power Generation by technology (GWh) |
-| **E3** | **V2 Scenario fans (2025–2035)** | Low / Base / High paths for Total Primary Supply and Power Generation, envelope shaded with boundary demarcation |
-| **E4** | **V3 Fuel & technology mix** | Technology dispatch shares (Hydro, Solar, Wind, Nuclear, Coal, Gas) and Clean Energy share % vs 60% Clean Target and 30% ARE Target |
-| **E5** | **V4 Installed capacity (MW/GW)** | Technology-wise generation capacity required to reliably deliver dispatch, accounting for technology capacity factors |
-| **E6** | **V5 Supply adequacy & reserve margin** | Generation supply vs forecasted demand (GWh) with system reserve margin % evaluated against the safe 15%–25% planning corridor |
-| **E7** | **V6 Energy security & imports** | Indigenous domestic energy production vs imported fuel exposure (TOE) and import dependency % trajectory |
-| **E8** | **V7 Forecast reliability** | Hold-out backtest (training ≤ 2020, hold-out 2021–2024) comparing Driver vs Trend models with MAPE, RMSE, Bias and R² |
+| **K1** | Total primary energy supply | The last measured level, the level at the horizon under the chosen scenario, and the % change |
+| **K2** | Electricity generation | The same three numbers for generated electricity, plus the yearly growth rate |
+| **K3** | Does supply cover demand | How far supply sits above or below demand at the horizon, in %, with the supply and demand levels and the comfortable 15%–25% band |
 
----
+**Default view** (fitted 2012–2024, horizon 2035, planned GDP growth = the median
+of the last ten reported years, Low/High = ±1.5pp around it):
 
-## 3. Baseline numbers (Calibration 2012–2024, Horizon 2035, Base GDP 4.0% ± 1.5pp)
-
-### A. Energy Supply Aggregates
-
-| Metric | 2024 Reported | 2035 Low | 2035 Base | 2035 High | Base Growth |
+| Series | 2024 measured | 2035 Low | 2035 Base | 2035 High | Base growth |
 |---|---|---|---|---|---|
-| **Total Primary Supply (MTOE)** | 75.73 | 86.29 | **93.25** | 100.72 | +1.91%/yr |
-| **Power Generation Supply (GWh)** | 154,480 | 276,171 | **385,837** | 533,758 | +8.68%/yr |
-| **Clean Generation (GWh)** | 86,140 | 125,109 | **161,512** | 207,727 | +6.90%/yr |
-| **Clean Energy Share %** | 55.76% | 45.30% | **41.86%** | 38.92% | Tracking benchmark |
-| **Variable RE (Solar + Wind) %** | 16.18% | 16.83% | **17.78%** | 19.06% | ARE 30% policy |
-| **Required Installed Capacity (GW)** | 43.8 GW | 52.4 GW | **69.8 GW** | 94.6 GW | Capacity additions |
-
-### B. Technology Generation Mix to 2035 (Base Scenario, GWh)
-
-| Technology | 2024 Reported | 2035 Base Outlook | Technology Role |
-|---|---|---|---|
-| **Hydro** | 38,270 | **57,681** | Major baseload expansion (Dasu, Mohmand, Diamer-Bhasha) |
-| **Solar** | 19,830 | **56,577** | Accelerated utility & distributed solar under ARE policy |
-| **Wind** | 5,160 | **12,031** | Jhimpir & coastal wind corridor development |
-| **Nuclear** | 22,880 | **35,223** | Reliable non-fossil baseload (K-2, K-3, C-5) |
-| **Coal** | 24,360 | **112,163** | Prioritizing indigenous Thar coal over imported coal |
-| **Natural Gas / RLNG** | 43,980 | **112,163** | Dispatchable balancing & peaking thermal capacity |
-| **Total Generation** | **154,480** | **385,837** | +8.68% CAGR |
-
-### C. Supply Adequacy & Reserve Margin (2035)
-
-| Scenario | Generation Supply (GWh) | Projected Demand (GWh) | Reserve Margin % | System Adequacy Classification |
-|---|---|---|---|---|
-| **Low** | 276,171 | 293,834 | **−6.01%** | **Deficit Risk / Load Shedding Threat** |
-| **Base** | 385,837 | 293,834 | **+31.31%** | **Capacity Trap / Payment Burden Risk** |
-| **High** | 533,758 | 293,834 | **+81.65%** | **Severe Overcapacity Trap** |
-
-> **Key Finding:** In the Low supply scenario, delayed capital expenditures create a supply deficit by 2035. Conversely, in the Base and High scenarios, if demand growth slows, excess installed capacity can trigger unsustainable capacity payments. Maintaining reserve margins within the **15%–25% corridor** is essential.
-
-### D. Energy Security & Import Vulnerability (2035)
-
-| Scenario | 2035 Primary Supply (MTOE) | Indigenous Supply (MTOE) | Imported Energy (MTOE) | Import Share % |
-|---|---|---|---|---|
-| **Reported (2024)** | 75.73 | 54.15 | 21.58 | **28.5%** |
-| **Low Scenario** | 86.29 | 59.54 | 26.75 | **31.0%** |
-| **Base Scenario** | 93.25 | 72.73 | 20.51 | **22.0%** |
-| **High Scenario** | 100.72 | 84.60 | 16.11 | **16.0%** |
-
-### E. Model Hold-Out Backtesting (2021–2024)
-
-| Series | Model | Hold-Out MAPE % | Hold-Out RMSE | Bias % | Calibration R² | Model Winner |
-|---|---|---|---|---|---|---|
-| **Primary Energy Supply** | Driver | **12.65%** | 1.13e+07 | +9.0% | 0.889 | ◀ Lower Error |
-| Primary Energy Supply | Trend | 13.45% | 1.20e+07 | +10.0% | 0.814 | |
-| **Electricity Generation** | Driver | **7.83%** | 14,152 | +7.8% | 0.968 | ◀ Lower Error |
-| Electricity Generation | Trend | 11.39% | 20,109 | +11.4% | 0.966 | |
-| **Clean Generation** | Trend | **24.00%** | 19,783 | −24.0% | 0.820 | ◀ Lower Error |
-| Clean Generation | Driver | 25.37% | 20,947 | −25.4% | 0.702 | |
+| Total primary supply (MTOE) | 75.73 | 86.29 | **93.25** | 100.72 | +1.91%/yr |
+| Electricity generated (GWh) | 154,480 | 276,171 | **385,837** | 533,758 | +8.68%/yr |
+| Clean generation (GWh) | 86,140 | 125,109 | **161,512** | 207,727 | +6.90%/yr |
+| Clean share of generation (%) | 55.76 | 45.30 | **41.86** | 38.92 | against the 60% goal |
 
 ---
 
-## 4. Unit Support
+## 3. Layout
 
-Supports real-time unit conversion via the platform unit slicer:
-- **Energy:** `TOE`, `MTOE`, `KTOE`
-- **Electricity:** `GWh`, `TWh`, `MWh`
-- **Power:** `MW`, `GW`, `kW`
+### 3.1 Visuals
+
+| # | Chart | What it shows |
+|---|---|---|
+| V1 | **Supply so far** | Primary energy by source and electricity by source, stacked, for the measured years |
+| V2 | **Three ways supply can go** | Measured history, then the slow / planned / fast paths to the horizon, dashed, with the band between slow and fast shaded |
+| V3 | **What the electricity is made of** | Each generating source stacked, with the clean share on the right axis next to the 60% clean goal and the 30% renewables goal |
+| V4 | **Does supply cover demand** | Generated electricity against the demand it must meet; the shaded part is spare supply |
+| V5 | **Where the supply comes from** | Energy made at home against energy bought from abroad, with the imported share on the right axis |
+| V6 | **How far to trust the forecast** | The average error per series and model on the four years the model had not seen |
+
+Things that were cut, and why: the installed-capacity chart and its card (MW is a
+build-plan figure, not a supply, and the question asks what supply will be), the
+separate reserve-margin chart (its one number is the whole of card K3 and the
+shape of V4), the predicted-versus-actual path and the model metrics table (V6's
+bars carry the same message in one look), and a clean-share card (V3 already shows
+the share and its two goals).
+
+### 3.2 Sidebar
+
+Deliberately minimal — two controls, plus the shared Unit Selection.
+
+| Control | Range | Effect |
+|---|---|---|
+| **Scenarios to show** | Low / Base / High | Which paths are drawn, and which scenario the cards read |
+| **Forecast up to** | 2026 – 2035 | The last year the model looks ahead to |
+| **Unit Selection** | Energy (TOE/KTOE/MTOE), Electricity (GWh/TWh/MWh) | Re-renders every axis, hover and card |
+
+There are no fitting knobs. The model always uses the driver method, the 2012
+calibration start and the data-driven GDP default, because leaving them open lets
+the same question be answered several different ways.
+
+---
+
+## 4. Method
+
+### 4.1 Two ways to project one series
+
+For each series (total primary supply, electricity generated, clean generated) the
+engine fits, over 2012–2024:
+
+* **driver model** — `ln(supply) = a + ε · ln(real GDP)`, with ε kept in 0.1…2.5;
+* **trend model** — `ln(supply) = a + b · years since 2012`, with b kept in −2…+12%/yr.
+
+Real GDP is chained from the reported `gdp_growth_pct`, so the exchange rate cannot
+creep into the answer. The page draws the driver model; the trend model stays fitted
+because V6 compares the two.
+
+### 4.2 The three scenarios
+
+`g = ε × GDP growth`, clamped to 0.5…12% a year.
+
+Planned GDP growth is the median of the last ten reported years (from
+`fact_economic_indicators`), Low is that minus 1.5pp and High is it plus 1.5pp. The
+path is then compounded from the last measured year to the horizon.
+
+### 4.3 What the electricity is made of
+
+Each source follows the planned build-out in the reported record — hydro and solar
+expanding, nuclear as clean baseload, coal and gas as the dispatchable balance — and
+is rescaled so the parts always add up to the scenario's total generation. The clean
+share is the sum of hydro, nuclear, solar, wind and other renewables over that total,
+read against the 60% clean goal and the 30% renewables goal.
+
+### 4.4 Does supply cover demand
+
+`margin % = (supply − demand) / demand × 100`, with demand at its measured value up
+to 2024 and carried on at 4.8% a year after it. The bands are the ones planning
+practice uses: under 10% is **not enough supply**, 10–25% is a **comfortable
+margin**, above 25% is **more built than needed**.
+
+| Scenario | 2035 supply (GWh) | 2035 demand (GWh) | Margin | Read as |
+|---|---|---|---|---|
+| Low | 276,171 | 293,834 | **−6.0%** | Not enough supply |
+| Base | 385,837 | 293,834 | **+31.3%** | More built than needed |
+| High | 533,758 | 293,834 | **+81.7%** | More built than needed |
+
+The point the page makes is not that one scenario is right, but that supply growth
+here runs ahead of demand growth: the risk in this data is spare capacity, not
+shortage.
+
+### 4.5 Where the supply comes from
+
+Imports are measured directly (`imports_toe` in the primary supply table) and shown
+against total supply. After 2024 the imported share moves in a straight line from the
+measured 28.5% (2024) to the share each scenario assumes for the horizon — 31% slow,
+22% planned, 16% fast — because the warehouse holds no fuel-price or policy series to
+fit one. It is a stated path, and the chart says so by sitting on the dashed side of
+the boundary.
+
+### 4.6 Testing the forecast
+
+Each model is fitted only on years up to 2020 and then asked to predict 2021–2024,
+which it has not seen. V6 shows the average error of each attempt.
+
+| Series | Trend model | Driver model | Easier to beat |
+|---|---|---|---|
+| Total primary supply | 13.45% | **12.65%** | Driver |
+| Electricity generated | 11.39% | **7.83%** | Driver |
+| Clean generation | **24.00%** | 25.37% | Trend |
+
+The income-linked model wins on total supply and on generation, and both models are
+far off on clean generation — the years 2021–2024 are exactly when solar and wind
+started arriving faster than any relationship in the earlier data would predict. V6
+names both models instead of hiding the worse one.
+
+---
+
+## 5. Data
+
+| Table | Used for | Reported |
+|---|---|---|
+| `fact_primary_energy_supply` + `dim_energy_source` | Supply by source, total, imports (TOE) | 1999–2024 |
+| `fact_renewable_energy` | Generation by technology and grid demand (GWh) | 2000–2024 |
+| `fact_elec_generation` | Total generation and installed capacity cross-check (GWh, MW) | 2000–2024 |
+| `fact_economic_indicators` | GDP growth, population | 2000–2024 |
+| `dim_year` | Fiscal year ↔ calendar year | 1999–2024 |
+
+Base units: TOE · GWh · USD — converted for display by
+[`core/units.py`](../../core/units.py).
+
+Every point is tagged, and the tag drives the line style: what was reported is
+solid, what the model expects is dashed, and the vertical line in each chart marks
+where one stops and the other starts. A year inside the window the record never
+reported prints nothing — it is not filled with 0 or carried from a neighbouring
+year — and each card names the year its value actually came from (or *no reading*).
+Projection starts at 2025.
+
+---
+
+## 6. Known limitations
+
+* **Supply is projected from one relationship.** Growth follows real GDP through a
+  fitted elasticity; no plant-level build schedule, fuel price or weather series is
+  in the warehouse, so the paths cannot be built on those.
+* **The demand line is a benchmark, not this page's forecast.** It is Q4's subject;
+  here it is a flat 4.8% a year after 2024, so the margin in K3 and V4 should be read
+  as "supply against a reference demand path".
+* **The imported share after 2024 is an assumed trajectory** (4.5 above), not a
+  fitted result.
+* **The test window is four years.** Average error is read from it; the fit quality
+  R² comes from the fitting window, where it means something.
+* Installed capacity (MW) is deliberately off the page. A build plan is not a supply,
+  and mixing the two on one chart makes a planned megawatt look like delivered energy.
+
+---
+
+## 7. Files
+
+| File | Purpose |
+|---|---|
+| `page.py` | Sidebar, KPI cards, layout |
+| `charts.py` | The six Plotly figures |
+| `README.md` | This document |
+
+Related: [`core/supply_forecast.py`](../../core/supply_forecast.py) (fits,
+scenarios, technology mix, adequacy, imports, backtest),
+[`core/queries.py`](../../core/queries.py) (SQL),
+[`scripts/verify_supply_forecast.py`](../../scripts/verify_supply_forecast.py)
+(prints the numbers from live MySQL),
+[`scripts/smoke_test_app.py`](../../scripts/smoke_test_app.py) (headless render
+check of all dashboards).

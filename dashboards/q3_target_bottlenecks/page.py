@@ -1,5 +1,17 @@
 """
 Target Bottlenecks dashboard (Question 3).
+
+Question 3 asks what is blocking the planned targets, so this page keeps only
+the three ingredients of that answer:
+
+  1. Sidebar       -- which years to look at
+  2. KPI cards     -- the four planned targets, each with its benchmark, its
+                      gap, the direction of travel and how severe the miss is
+  3. Visuals       -- where the energy is lost, what we import, the gas
+                      shortfall, and all four distances to target together
+
+Benchmarks come from the database (dim_target) through core.targets, and every
+number is computed by core.bottleneck_metrics -- this page only lays it out.
 """
 
 from __future__ import annotations
@@ -10,10 +22,9 @@ import streamlit as st
 from config.database import run_query
 from core.bottleneck_metrics import (
     HISTORY_START,
-    PROJECTED,
     build_dashboard_data,
 )
-from core.components import section_title
+from core.components import conclusion_card, section_title
 from core.queries import (
     Q_ENERGY_OVERVIEW,
     Q_NATURAL_GAS,
@@ -26,11 +37,10 @@ from core.units import display_factor, normalise
 
 from .charts import (
     visual1_loss_waterfall,
-    visual2_losses_path,
-    visual3_import_dependence,
-    visual4_gas_balance,
-    visual5_gap_paths,
-    visual6_achievement,
+    visual2_import_dependence,
+    visual3_gas_balance,
+    visual4_gap_paths,
+    visual5_bottleneck_slope,
 )
 
 HORIZON = 2035
@@ -38,7 +48,6 @@ VIEW_START = HISTORY_START
 DEFAULT_RANGE = (HISTORY_START, HORIZON)
 
 _FILTERS_KEY = "q3_filters"
-_KPI_KEYS = [s["key"] for s in KPI_SPEC]
 
 _GAP_LABELS = {
     "gas_self_suff_pct": "Gas Self-Sufficiency %",
@@ -67,18 +76,17 @@ def _num(value) -> float:
 
 def _sidebar_filters() -> dict:
     st.sidebar.markdown(
-        '<div class="dsh-side-title">Analysis Range</div>',
+        '<div class="dsh-side-title">Years</div>',
         unsafe_allow_html=True,
     )
     year_range = st.sidebar.slider(
-        "Year Range",
+        "Years to show",
         min_value=VIEW_START,
         max_value=HORIZON,
         value=DEFAULT_RANGE,
         step=1,
         key="q3_year_range",
-        help=("Charts zoom to this window and the KPI cards are judged on its "
-              "final year. Modelled years are drawn dashed."),
+        help=("Charts show these years. The cards use the last year you pick."),
     )
     return {"year_range": year_range}
 
@@ -88,37 +96,117 @@ def sidebar():
     st.sidebar.divider()
 
 
+_CARD_CSS = """
+<style>
+  .q3-kpi {
+      --acc: #64748B;
+      --acc-soft: rgba(100, 116, 139, 0.16);
+      background: linear-gradient(145deg, rgba(28, 33, 44, 0.95) 0%, rgba(18, 22, 30, 0.98) 100%) !important;
+      border-radius: 12px !important;
+      padding: 13px 14px 12px 17px !important;
+      height: 128px !important;
+      min-height: 128px !important;
+      max-height: 128px !important;
+      box-sizing: border-box !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+      position: relative !important;
+      overflow: hidden !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+      border: 1px solid rgba(255, 255, 255, 0.07) !important;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      width: 100% !important;
+  }
+  /* Per-metric accent bar + hover glow -- the same skin the other
+     dashboards' KPI cards wear, so Q3 no longer looks plainer. */
+  .q3-kpi::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+      background: linear-gradient(180deg, var(--acc) 0%, var(--acc) 55%, transparent 100%);
+      border-radius: 4px 0 0 4px;
+  }
+  .q3-kpi:hover {
+      transform: translateY(-4px) !important;
+      border-color: var(--acc) !important;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--acc-soft) !important;
+  }
+  .q3-kpi-footer {
+      display: flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      margin-top: auto !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+      padding-top: 6px !important;
+      min-height: 20px !important;
+  }
+</style>
+"""
+
+
 def _kpi_card(reading, rank: int | None) -> str:
-    """Target-aware KPI card for one benchmark."""
+    """Target-aware KPI card for one benchmark.
+
+    Power BI style blank: when the reference year has no source row for this
+    metric the value, YoY and gap cells render as empty strings -- never a
+    silent 0.0 that could be mistaken for a real measurement.
+    """
     sev = reading.sev
     colour = reading.color
-    gap = reading.gap
+    is_missing = (reading.actual_value is None) or pd.isna(reading.actual_value)
 
-    arrow = "\u25b2" if reading.yoy > 0 else ("\u25bc" if reading.yoy < 0 else "\u25ac")
-    yoy_good = (reading.yoy < 0) if reading.direction == "lower" else (reading.yoy > 0)
-    yoy_colour = "#10B981" if yoy_good else "#EF4444"
+    # Every span below carries text. An empty inline <span> (the old flex
+    # spacer) made Streamlit's markdown parser leak the raw tag as literal
+    # text on a "no data" year, so the footer is built from non-empty bits
+    # and right-alignment uses margin-left:auto instead of a spacer span.
+    target_html = ""
+    if reading.target is not None and not pd.isna(reading.target):
+        target_html = f"{reading.target:,.1f}%"
 
-    rank_html = ""
-    if rank is not None and rank <= 2 and not reading.on_track:
-        rank_html = (f'<span style="color:#EF4444;font-size:8px;font-weight:700;">'
-                     f'#{rank} bottleneck</span>')
+    if is_missing:
+        # Rule 4: the reference year reported nothing for this metric, so the
+        # value area says "no reading" -- never a silent 0.0.
+        value_block = (
+            '<div style="min-height:22px;margin-bottom:8px;">'
+            '<span style="color:#64748B;font-size:13px;font-weight:700;'
+            "font-family:'JetBrains Mono','Courier New',monospace;\">"
+            'no reading</span></div>')
+        gap_html = ""
+        rank_html = ""
+    else:
+        gap = reading.gap
+        arrow = "\u25b2" if reading.yoy > 0 else ("\u25bc" if reading.yoy < 0 else "\u25ac")
+        yoy_good = (reading.yoy < 0) if reading.direction == "lower" else (reading.yoy > 0)
+        yoy_colour = "#10B981" if yoy_good else "#EF4444"
+        yoy_html = (f'<span style="color:{yoy_colour};font-size:8px;font-weight:600;">'
+                    f'{arrow} {abs(reading.yoy):.1f}pp</span>')
+        value_block = (
+            '<div style="display:flex;align-items:baseline;gap:8px;'
+            'min-height:22px;margin-bottom:8px;">'
+            f'<span style="color:{colour};font-size:22px;font-weight:800;line-height:1;'
+            "font-family:'JetBrains Mono','Courier New',monospace;\">"
+            f'{reading.actual_value:,.1f}%</span>{yoy_html}</div>')
+        gap_html = (f'<span style="color:{sev["color"]};font-size:8px;font-weight:700;">'
+                    f'({gap:+.1f}pp)</span>')
+        if rank is not None and rank <= 2 and not reading.on_track:
+            rank_html = (f'<span style="color:#EF4444;font-size:8px;font-weight:700;">'
+                         f'#{rank} bottleneck</span>')
+        else:
+            rank_html = ""
+
+    footer_bits = ""
+    if target_html:
+        footer_bits += ('<span style="color:#64748B;font-size:8px;">Target</span>'
+                        f'<span style="color:#B0BAC9;font-size:8.5px;font-weight:600;">'
+                        f'{target_html}</span>')
+    if gap_html:
+        footer_bits += gap_html
+    if rank_html:
+        footer_bits += f'<span style="margin-left:auto;">{rank_html}</span>'
 
     return f"""
-<div style="
-    background: #161B26;
-    border-radius: 10px;
-    padding: 14px 14px 12px;
-    height: 130px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    width: 100%;
-    border-left: 3px solid {colour};
-">
+<div class="q3-kpi" style="--acc:{colour}; --acc-soft:{colour}26;">
   <!-- header: icon + title + severity -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
     <div style="width:24px;height:24px;flex-shrink:0;background:{colour}18;
                 border-radius:6px;display:flex;align-items:center;justify-content:center;
                 color:{colour};font-size:10px;">
@@ -132,23 +220,10 @@ def _kpi_card(reading, rank: int | None) -> str:
       {sev['label']}</span>
   </div>
 
-  <!-- value row -->
-  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:auto;">
-    <span style="color:{colour};font-size:22px;font-weight:800;line-height:1;
-                 font-family:'JetBrains Mono','Courier New',monospace;">
-      {reading.actual_value:,.1f}%</span>
-    <span style="color:{yoy_colour};font-size:8px;font-weight:600;">
-      {arrow} {abs(reading.yoy):.1f}pp</span>
-  </div>
+  {value_block}
 
-  <!-- footer: target + gap + rank -->
-  <div style="display:flex;align-items:center;gap:6px;">
-    <span style="color:#64748B;font-size:8px;">Target</span>
-    <span style="color:#B0BAC9;font-size:8.5px;font-weight:600;">{reading.target:,.1f}%</span>
-    <span style="color:{sev['color']};font-size:8px;font-weight:700;">({gap:+.1f}pp)</span>
-    <span style="flex:1;"></span>
-    {rank_html}
-  </div>
+  <!-- footer: target + gap + rank (only the parts that carry a value) -->
+  <div class="q3-kpi-footer">{footer_bits}</div>
 </div>
 """
 
@@ -177,7 +252,6 @@ def render():
     )
     series = data["series"]
     readings = data["readings"]
-    ref = data["reference_year"]
 
     # Unit conversion
     e_u = normalise(units.get("energy", "TOE"))
@@ -195,6 +269,7 @@ def render():
     wf_year = int(year_range[1])
 
     # KPI cards
+    st.markdown(_CARD_CSS, unsafe_allow_html=True)
     rank_of = {d["key"]: d["rank"] for d in data["ranking"]}
     cols = st.columns(len(KPI_SPEC))
     for col, spec in zip(cols, KPI_SPEC):
@@ -206,99 +281,88 @@ def render():
 
     st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
 
-    # Visual 1: Energy Loss Waterfall & Visual 2: Losses vs Benchmark
+    # --- Row 1: where the energy is lost, and what we buy from abroad ---
     r1c1, r1c2 = st.columns(2)
-    loss_t = targets.get("losses_pct", {})
 
     with r1c1:
         st.markdown(
-            section_title("V1 — Energy Loss Waterfall", "warning",
+            section_title("Visual 1 – Where the Energy Is Lost", "warning",
                           badge=f"{wf_year} · {e_u}"),
             unsafe_allow_html=True)
-        st.caption(f"Step-by-step energy flow in {wf_year} from primary supply to final consumption ({e_u}), highlighting transformation and T&D loss deductions.")
+        st.caption(f"Energy the country gets in {wf_year}, split into the parts lost on the way and the part that actually reaches users ({e_u}).")
         st.plotly_chart(
             visual1_loss_waterfall(chart_series, wf_year, unit=e_u),
             use_container_width=True, config={"displayModeBar": False})
 
     with r1c2:
         st.markdown(
-            section_title("V2 — Losses vs Benchmark", "chart",
-                          badge=f"{span} · {_num(loss_t.get('target')):.1f}%"),
+            section_title("Visual 2 – Energy We Import", "imports",
+                          badge=f"{span} · {e_u}"),
             unsafe_allow_html=True)
-        st.caption(f"Evolution of total system energy loss percentage against national policy benchmark ({_num(loss_t.get('target')):.1f}%), showing reported actuals and modelled projections.")
+        st.caption(f"How much energy arrives from abroad ({e_u}, bars) and what share of our total supply that is (line).")
         st.plotly_chart(
-            visual2_losses_path(series, year_range,
-                                target=_num(loss_t.get("target")),
-                                direction=loss_t.get("direction", "lower")),
+            visual2_import_dependence(chart_series, year_range, unit_energy=e_u),
             use_container_width=True, config={"displayModeBar": False})
 
-    # Visual 3: Import Dependence & Visual 4: Gas Balance
+    # --- Row 2: the gas shortfall, then all four targets on one chart ---
     r2c1, r2c2 = st.columns(2)
-    imp_t = targets.get("import_pct", {})
     gas_t = targets.get("gas_self_suff_pct", {})
 
     with r2c1:
         st.markdown(
-            section_title("V3 — Import Dependence", "imports",
-                          badge=f"{span} · {e_u} · {_num(imp_t.get('target')):.1f}%"),
+            section_title("Visual 3 – Gas Made vs Gas Used", "gas",
+                          badge=f"{span} · {g_u} · target {_num(gas_t.get('target')):.0f}%"),
             unsafe_allow_html=True)
-        st.caption(f"Total primary energy imports vs indigenous domestic energy supply ({e_u}) and import dependency % compared to target benchmark.")
+        st.caption(f"Gas we pump from our own fields against gas we burn ({g_u}). The red dip below the bars is the amount we cannot cover.")
         st.plotly_chart(
-            visual3_import_dependence(
-                chart_series, year_range,
-                target=_num(imp_t.get("target")),
-                unit_energy=e_u,
-                last_reported_year=data["last_reported_import_year"],
-                benchmark_note=""),
+            visual3_gas_balance(chart_series, year_range,
+                                target=_num(gas_t.get("target")), unit_gas=g_u),
             use_container_width=True, config={"displayModeBar": False})
 
     with r2c2:
         st.markdown(
-            section_title("V4 — Gas Production vs Consumption", "gas",
-                          badge=f"{span} · {g_u} · {_num(gas_t.get('target')):.0f}%"),
+            section_title("Visual 4 – Distance to Each Target", "insights",
+                          badge=span),
             unsafe_allow_html=True)
-        st.caption(f"Natural gas domestic field production vs nationwide consumption ({g_u}), highlighting the structural gas deficit and self-sufficiency trajectory.")
+        st.caption("All four targets on one chart. A line above the middle means that target is met; below it means missed.")
         st.plotly_chart(
-            visual4_gas_balance(chart_series, year_range,
-                                target=_num(gas_t.get("target")), unit_gas=g_u),
-            use_container_width=True, config={"displayModeBar": False})
-
-    # Visual 5: Benchmark Gaps & Visual 6: Achievement
-    r3c1, r3c2 = st.columns(2)
-
-    with r3c1:
-        st.markdown(
-            section_title("V5 — Benchmark Gaps", "insights", badge=span),
-            unsafe_allow_html=True)
-        st.caption("Percentage-point performance gaps over time across all four strategic policy indicators relative to national target benchmarks.")
-        st.plotly_chart(
-            visual5_gap_paths(data["timeline"], year_range,
+            visual4_gap_paths(data["timeline"], year_range,
                               _GAP_LABELS, _GAP_COLORS),
             use_container_width=True, config={"displayModeBar": False})
 
-    with r3c2:
+    # --- Visual 5: better or worse, first reported year to last reported ---
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    r3c1, _ = st.columns([1.6, 1])
+    with r3c1:
         st.markdown(
-            section_title("V6 — Achievement vs Benchmark", "intensity",
-                          badge=span),
+            section_title("Visual 5 – Are the bottlenecks getting better or worse?",
+                          "warning", badge="first reported → last reported"),
             unsafe_allow_html=True)
-        st.caption(f"Target achievement percentages across key indicators for reference year {ref}, classifying bottleneck severity and progress.")
+        st.caption("One line per metric. Green means it moved the right way over "
+                   "the chosen years; red means it moved the wrong way.")
         st.plotly_chart(
-            visual6_achievement(readings, _KPI_KEYS, year=ref),
+            visual5_bottleneck_slope(chart_series, year_range),
             use_container_width=True, config={"displayModeBar": False})
 
-    # Footer
-    last_actual = data.get("last_actual_losses_year")
-    imp_end = data.get("last_reported_import_year")
-
-    worst = data["ranking"][0] if data["ranking"] else None
-    if worst is not None:
-        lead = (f'Most urgent in {ref}: {worst["short"]} at '
-                f'{worst["achievement"]:.0f}% of its benchmark'
-                f' ({worst["gap"]:+.1f}pp).' if not worst["on_track"]
-                else f'All benchmarks met in {ref}; thinnest margin is '
-                     f'{worst["short"]} at {worst["achievement"]:.0f}%.')
+    # ---- Bottom line ----
+    ranking = data["ranking"]
+    if not ranking:
+        lines = ["Not enough readings in this year range to judge the targets."]
     else:
-        lead = f"No benchmark data for {ref}."
+        top = ranking[0]
+        missed = [d for d in ranking if not d["on_track"]]
+        if top["gap"] < 0:
+            lines = [
+                f"Biggest hold-up: {top['title']}, {abs(top['gap']):.1f} "
+                "percentage points short of its target.",
+                f"{len(missed)} of {len(ranking)} checks are behind target here — "
+                "the cards rank them worst first.",
+            ]
+        else:
+            lines = [
+                f"No target is missed in this view — {top['title']} has the least "
+                "slack to lean on.",
+                "All four checks are holding their targets.",
+            ]
+    st.markdown(conclusion_card(lines), unsafe_allow_html=True)
 
-    reporting = (f"losses reported to {last_actual}, imports to {imp_end}"
-                 if last_actual else "reported history only")

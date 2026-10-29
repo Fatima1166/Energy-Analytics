@@ -34,6 +34,15 @@ Headline stats and H1/H3 honour the global unit slicer
 (`energy`, `electricity`, `emission` families); the donut is share-based and
 unitless.
 
+## Data gaps
+
+The four headline cards take each metric from its **own** year: a card names the
+latest year that metric reported, or prints *no reading* when it has none at
+all. Nothing is carried over from another year and no missing year is drawn as
+zero; the H1/H3 charts break their line where the record is silent. The fuel
+mix and the carbon-intensity note only appear when they belong to the same year
+as the numbers they describe.
+
 ## Data sources
 
 `Q_ENERGY_OVERVIEW`, `Q_ELEC_GEN`, `Q_RENEWABLE_ENERGY`, `Q_PRIMARY_SUPPLY`,

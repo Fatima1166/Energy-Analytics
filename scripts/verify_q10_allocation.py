@@ -30,7 +30,7 @@ import mysql.connector
 from dotenv import load_dotenv
 
 from core import queries
-from core.resource_allocation import HORIZON, build_allocation_data
+from core.resource_allocation import HORIZON, HISTORY_END, build_allocation_data
 
 load_dotenv(ROOT / ".env")
 
@@ -64,68 +64,87 @@ def main() -> int:
     data = build_allocation_data(
         re_df=load(conn, queries.Q_RENEWABLE_ENERGY),
         gas_df=load(conn, queries.Q_NATURAL_GAS),
-        sector_df=load(conn, queries.Q_ELEC_SECTOR_CONSUMPTION),
         ef_df=load(conn, queries.Q_EMISSION_FACTORS),
     )
     conn.close()
 
     opt, bau = data["opt_score"], data["bau_score"]
 
-    section("Q10 REQUIREMENT")
-    print(f"2024 generation base:    {data['total_2024_gwh']:14,.0f} GWh")
-    print(f"Horizon {HORIZON} requirement:  {data['demand_gwh']:14,.0f} GWh  "
-          f"(x{data['demand_gwh'] / max(data['total_2024_gwh'], 1):.2f})")
+    section("Q10 THE JOB TO BE DONE")
+    base_year = int(data["base_year"]) or HISTORY_END
+    print(f"{base_year} generation base: {data['total_base_gwh']:14,.0f} GWh")
+    print(f"Horizon {HORIZON} need:      {data['demand_gwh']:14,.0f} GWh  "
+          f"(x{data['demand_gwh'] / max(data['total_base_gwh'], 1):.2f})")
 
-    section("OPTIMAL ALLOCATION vs BAU (GWh)")
+    section("HOW THE POWER IS SPLIT (GWh)")
     for _, r in data["allocation"].iterrows():
-        clamp = "  ◤ clamped at ceiling" if r["clamped"] else ""
-        print(f"  {r['technology']:<9} optimal={r['optimal_gwh']:12,.0f}   "
-              f"bau={r['bau_gwh']:12,.0f}   ceiling={r['ceiling_gwh']:12,.0f}{clamp}")
-    print(f"  Shortfall: {data['shortfall_gwh']:,.0f} GWh  "
-          f"(coverage {opt['coverage_pct']:.1f}%)")
+        clamp = "  ◤ at its limit" if r["clamped"] else ""
+        print(f"  {r['technology']:<9} plan={r['optimal_gwh']:12,.0f}   "
+              f"{base_year} mix={r['bau_gwh']:12,.0f}   limit={r['ceiling_gwh']:12,.0f}{clamp}")
+    print(f"  Left unserved: {data['shortfall_gwh']:,.0f} GWh  "
+          f"(demand served {opt['coverage_pct']:.1f}%)")
 
-    section("KPI PAIRS (optimal vs BAU)")
-    print(f"  Cost  bn USD:  {opt['cost_usd']/1e9:10,.2f}  vs BAU {bau['cost_usd']/1e9:10,.2f}")
-    print(f"  CO2       Mt:  {opt['co2_t']/1e6:10,.1f}  vs BAU {bau['co2_t']/1e6:10,.1f}")
-    print(f"  Import dep %:  {opt['import_dep_pct']:10,.1f}  vs BAU {bau['import_dep_pct']:10,.1f}")
-    print(f"  RE share    %:  {opt['re_share_pct']:10,.1f}  vs BAU {bau['re_share_pct']:10,.1f}")
+    section(f"WHAT THE PLAN BUYS (plan vs the {base_year} mix)")
+    print(f"  Cost       :  {opt['cost_usd']/1e9:10,.2f} bn USD  vs "
+          f"{bau['cost_usd']/1e9:10,.2f} on the {base_year} mix")
+    print(f"  CO2        :  {opt['co2_t']/1e6:10,.1f} Mt      vs "
+          f"{bau['co2_t']/1e6:10,.1f} on the {base_year} mix")
+    print(f"  Fuel bought:  {opt['import_dep_pct']:10,.1f} %    vs "
+          f"{bau['import_dep_pct']:10,.1f} on the {base_year} mix")
+    print(f"  Clean share:  {opt['re_share_pct']:10,.1f} %    vs "
+          f"{bau['re_share_pct']:10,.1f} on the {base_year} mix")
 
-    section("PARETO ENDPOINTS")
+    section("WHAT THE PRIORITIES BUY (cheapest-first vs cleanest-first)")
     p = data["pareto"]
-    print(f"  Pure cost  : {p['cost_bn'].min():8,.2f} bn USD at "
-          f"{p.loc[p['cost_bn'].idxmin(), 'co2_mt']:8,.1f} Mt")
-    print(f"  Pure carbon: {p.loc[p['co2_mt'].idxmin(), 'cost_bn']:8,.2f} bn USD at "
-          f"{p['co2_mt'].min():8,.1f} Mt")
+    print(f"  Cheapest : {p['cost_usd'].min() / 1e9:8,.2f} bn USD at "
+          f"{p.loc[p['cost_usd'].idxmin(), 'co2_t'] / 1e6:8,.1f} Mt")
+    print(f"  Cleanest : {p.loc[p['co2_t'].idxmin(), 'cost_usd'] / 1e9:8,.2f} bn "
+          f"USD at {p['co2_t'].min() / 1e6:8,.1f} Mt")
 
-    section("GAS FEASIBILITY & SECTORS")
-    print(f"  Domestic gas planning cap: {data['domestic_gas_bcf']:8,.1f} BCF")
-    print(f"  Gas run needed:            {data['gas_need_bcf']:8,.1f} BCF  "
-          f"(self-sufficiency {data['gas_self_sufficiency_pct']:.0f}%)")
-    if not data["sectors"].empty:
-        for _, r in data["sectors"].iterrows():
-            print(f"  sector {r['sector']:<22} {r['demand_gwh']:12,.0f} GWh "
-                  f"({r['share_pct']:5.1f}%)")
-    else:
-        print("  (no sector dimension returned)")
+    section("SCORECARD (0-100, the 2024 mix | the plan)")
+    for _, r in data["radar"].iterrows():
+        arrow = "up" if r["optimal"] >= r["bau"] else "DOWN"
+        print(f"  {r['dimension']:<16} {r['bau']:6.1f} | {r['optimal']:6.1f}   {arrow}")
+
+    section("GAS FEASIBILITY")
+    print(f"  Home gas planning cap: {data['domestic_gas_bcf']:8,.1f} BCF")
+    print(f"  Gas the plan needs:    {data['gas_need_bcf']:8,.1f} BCF  "
+          f"(home supply covers {data['gas_self_sufficiency_pct']:.0f}%)")
 
     section("SANITY CHECKS")
     ok = True
     if opt["cost_usd"] > bau["cost_usd"] * 1.001 and opt["co2_t"] > bau["co2_t"] * 1.001:
-        print("  [WARN] optimal is worse than BAU on BOTH pillars -- check weights/ceilings")
+        print("  [WARN] the plan is worse than the 2024 mix on BOTH pillars"
+              " -- check the weights and limits")
     total_alloc = data["allocation"]["optimal_gwh"].sum() + data["shortfall_gwh"]
     if abs(total_alloc - data["demand_gwh"]) > max(1.0, data["demand_gwh"] * 1e-6):
         print(f"  [FAIL] allocation {total_alloc:,.0f} does not sum to demand "
               f"{data['demand_gwh']:,.0f}")
         ok = False
     if (data["allocation"]["optimal_gwh"] > data["allocation"]["ceiling_gwh"] + 1.0).any():
-        print("  [FAIL] some technology exceeds its resource ceiling")
+        print("  [FAIL] some resource is drawn above its limit")
         ok = False
+    dims = set(data["radar"]["dimension"])
+    want = {"Cheaper power", "Lower CO₂", "Fuel from home", "Source spread",
+            "Clean share", "Demand served"}
+    if dims != want:
+        print(f"  [FAIL] scorecard axes changed: {sorted(dims)}")
+        ok = False
+    else:
+        print("  [OK] scorecard carries the six plain axes")
     if not data["pareto"].empty:
         po = data["pareto"]
-        if po["cost_bn"].iloc[0] <= po["cost_bn"].iloc[-1]:
-            print("  [OK] frontier cost rises as theta shifts to pure carbon")
+        if po["cost_usd"].iloc[0] <= po["cost_usd"].iloc[-1]:
+            print("  [OK] cost rises as the plan tilts to cleanest-first")
         else:
-            print("  [WARN] frontier cost ordering looks inverted -- review")
+            print("  [WARN] the sweep's cost ordering looks inverted -- review")
+        # The sweep must hand back base units (US$, t); the page converts them
+        # once.  A pre-scaled column here would be multiplied a second time.
+        if po["cost_usd"].max() < 1e6 or po["co2_t"].max() < 1e3:
+            print("  [FAIL] the priority sweep is not in base units")
+            ok = False
+        else:
+            print("  [OK] priority sweep returns base units (US$, t)")
     print("  All structural checks passed." if ok else "  Review the failures above.")
     return 0 if ok else 1
 

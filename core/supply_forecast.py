@@ -219,22 +219,27 @@ def build_history(
         pdf["calendar_year"] = pd.to_numeric(pdf["calendar_year"], errors="coerce")
         pdf = pdf.dropna(subset=["calendar_year"])
         pdf["calendar_year"] = pdf["calendar_year"].astype(int)
-        pdf["supply_toe"] = pd.to_numeric(pdf["supply_toe"], errors="coerce").fillna(0.0)
-        pdf["imports_toe"] = pd.to_numeric(pdf["imports_toe"], errors="coerce").fillna(0.0)
+        pdf["supply_toe"] = pd.to_numeric(pdf["supply_toe"], errors="coerce")
+        pdf["imports_toe"] = pd.to_numeric(pdf["imports_toe"], errors="coerce")
 
-        # Total primary supply & total imports per year
-        tpes_tot = pdf.groupby("calendar_year")[["supply_toe", "imports_toe"]].sum().reset_index()
+        # Total primary supply & total imports per year.  min_count=1 keeps a
+        # year whose import rows are absent blank instead of reporting "imported
+        # nothing", which is the difference between a zero and no evidence.
+        tpes_tot = pdf.groupby("calendar_year")[['supply_toe', 'imports_toe']].sum(
+            min_count=1).reset_index()
         tpes_tot.rename(columns={"supply_toe": "tpes_toe", "imports_toe": "imports_toe"}, inplace=True)
         tpes_tot["domestic_toe"] = np.maximum(0.0, tpes_tot["tpes_toe"] - tpes_tot["imports_toe"])
         tpes_tot["import_share_pct"] = np.where(
             tpes_tot["tpes_toe"] > 0,
             (tpes_tot["imports_toe"] / tpes_tot["tpes_toe"]) * 100.0,
-            0.0
+            np.nan
         )
 
-        # Source breakdown
+        # Source breakdown.  A (year, source) cell the table never wrote stays
+        # blank in the stack instead of being drawn as a zero-supply source.
         p_piv = pdf.pivot_table(index="calendar_year", columns="source_name",
-                                values="supply_toe", aggfunc="sum", fill_value=0.0).reset_index()
+                                values="supply_toe", aggfunc="sum",
+                                fill_value=np.nan).reset_index()
         # Clean column names
         rename_map = {
             "Gas": "pes_gas_toe",
@@ -252,9 +257,9 @@ def build_history(
         merged = pd.merge(merged, primary_agg, on="calendar_year", how="left")
     else:
         merged["tpes_toe"] = np.nan
-        merged["imports_toe"] = 0.0
+        merged["imports_toe"] = np.nan
         merged["domestic_toe"] = np.nan
-        merged["import_share_pct"] = 0.0
+        merged["import_share_pct"] = np.nan
 
     # 3. Power Generation Supply by source (GWh) & Capacity (MW)
     if not re_df.empty:
@@ -265,24 +270,34 @@ def build_history(
         for col in ["gen_solar_gwh", "gen_wind_gwh", "gen_hydro_gwh", "gen_other_renewables_gwh",
                     "gen_nuclear_gwh", "gen_coal_gwh", "gen_gas_gwh", "capacity_mw", "demand_gwh"]:
             if col in rdf.columns:
-                rdf[col] = pd.to_numeric(rdf[col], errors="coerce").fillna(0.0)
+                rdf[col] = pd.to_numeric(rdf[col], errors="coerce")
             else:
-                rdf[col] = 0.0
+                rdf[col] = float("nan")
 
-        rdf["gen_clean_gwh"] = (rdf["gen_hydro_gwh"] + rdf["gen_solar_gwh"] +
-                                rdf["gen_wind_gwh"] + rdf["gen_other_renewables_gwh"] +
-                                rdf["gen_nuclear_gwh"])
-        rdf["gen_variable_re_gwh"] = rdf["gen_solar_gwh"] + rdf["gen_wind_gwh"]
-        rdf["gen_re_total_gwh"] = rdf["gen_solar_gwh"] + rdf["gen_wind_gwh"] + rdf["gen_hydro_gwh"] + rdf["gen_other_renewables_gwh"]
-        rdf["gen_thermal_gwh"] = rdf["gen_coal_gwh"] + rdf["gen_gas_gwh"]
-        rdf["gen_total_gwh"] = rdf["gen_clean_gwh"] + rdf["gen_thermal_gwh"]
+        # Summed across the sources that report at all, with min_count so a year
+        # that leaves one of them blank has no total either.  Averaging over the
+        # parts that exist would let 1999 -- a year with no coal, gas or nuclear
+        # row -- print a generation total it never reported.
+        def _sum_strict(cols):
+            cols = [c for c in cols if rdf[c].notna().any()]
+            return (rdf[cols].sum(axis=1, min_count=len(cols))
+                    if cols else float("nan"))
 
-        rdf["clean_share_pct"] = np.where(rdf["gen_total_gwh"] > 0,
-                                          (rdf["gen_clean_gwh"] / rdf["gen_total_gwh"]) * 100.0, 0.0)
-        rdf["re_share_pct"] = np.where(rdf["gen_total_gwh"] > 0,
-                                       (rdf["gen_re_total_gwh"] / rdf["gen_total_gwh"]) * 100.0, 0.0)
-        rdf["variable_re_share_pct"] = np.where(rdf["gen_total_gwh"] > 0,
-                                                (rdf["gen_variable_re_gwh"] / rdf["gen_total_gwh"]) * 100.0, 0.0)
+        rdf["gen_clean_gwh"] = _sum_strict(["gen_hydro_gwh", "gen_solar_gwh",
+                                            "gen_wind_gwh", "gen_other_renewables_gwh",
+                                            "gen_nuclear_gwh"])
+        rdf["gen_variable_re_gwh"] = _sum_strict(["gen_solar_gwh", "gen_wind_gwh"])
+        rdf["gen_re_total_gwh"] = _sum_strict(["gen_solar_gwh", "gen_wind_gwh",
+                                               "gen_hydro_gwh", "gen_other_renewables_gwh"])
+        rdf["gen_thermal_gwh"] = _sum_strict(["gen_coal_gwh", "gen_gas_gwh"])
+        rdf["gen_total_gwh"] = _sum_strict(["gen_hydro_gwh", "gen_solar_gwh",
+                                             "gen_wind_gwh", "gen_other_renewables_gwh",
+                                             "gen_nuclear_gwh", "gen_coal_gwh", "gen_gas_gwh"])
+
+        _den = rdf["gen_total_gwh"].replace(0, np.nan)
+        rdf["clean_share_pct"] = rdf["gen_clean_gwh"] / _den * 100.0
+        rdf["re_share_pct"] = rdf["gen_re_total_gwh"] / _den * 100.0
+        rdf["variable_re_share_pct"] = rdf["gen_variable_re_gwh"] / _den * 100.0
 
         # Merge with main table
         gen_cols = ["calendar_year", "capacity_mw", "demand_gwh",
@@ -464,31 +479,46 @@ def project_technology_mix(
     - Nuclear provides reliable clean baseload
     - Thermal (Coal & Gas) provides dispatchable balancing
     """
-    # 2024 baseline generation
-    h2024 = hist[hist["calendar_year"] == HISTORY_END].iloc[0] if (hist["calendar_year"] == HISTORY_END).any() else hist.iloc[-1]
-    hyd_2024 = _num(h2024.get("gen_hydro_gwh"), 38270.0)
-    sol_2024 = _num(h2024.get("gen_solar_gwh"), 19830.0)
-    wnd_2024 = _num(h2024.get("gen_wind_gwh"), 5160.0)
-    oth_2024 = _num(h2024.get("gen_other_renewables_gwh"), 1000.0)
-    nuc_2024 = _num(h2024.get("gen_nuclear_gwh"), 22880.0)
-    col_2024 = _num(h2024.get("gen_coal_gwh"), 24360.0)
-    gas_2024 = _num(h2024.get("gen_gas_gwh"), 43980.0)
-    tot_2024 = _num(h2024.get("gen_total_gwh"), hyd_2024 + sol_2024 + wnd_2024 + oth_2024 + nuc_2024 + col_2024 + gas_2024)
+    # Baseline generation.  Each technology starts from its own last reported
+    # year, never from a hand-written stand-in: the record stops filling some
+    # columns before others (and never fills gen_other_renewables_gwh at all),
+    # so an invented base would be the model talking, not the data.
+    tech_cols = {
+        "hyd": "gen_hydro_gwh", "sol": "gen_solar_gwh", "wnd": "gen_wind_gwh",
+        "oth": "gen_other_renewables_gwh", "nuc": "gen_nuclear_gwh",
+        "col": "gen_coal_gwh", "gas": "gen_gas_gwh",
+    }
+    base = {}
+    for k, col in tech_cols.items():
+        series = (pd.to_numeric(hist[col], errors="coerce").dropna()
+                  if col in hist.columns else pd.Series(dtype=float))
+        series = series[series > 0]
+        base[k] = float(series.iloc[-1]) if not series.empty else 0.0
+    hyd_2024, sol_2024, wnd_2024, oth_2024 = (base["hyd"], base["sol"],
+                                              base["wnd"], base["oth"])
+    nuc_2024, col_2024, gas_2024 = base["nuc"], base["col"], base["gas"]
+    tot_2024 = hyd_2024 + sol_2024 + wnd_2024 + nuc_2024 + col_2024 + gas_2024
 
     rows = []
     # Add historical rows (from 2012 or PRIMARY_START)
     for _, r in hist[hist["calendar_year"] >= DEFAULT_CALIB_START].iterrows():
         yr = int(r["calendar_year"])
-        hyd = _num(r.get("gen_hydro_gwh"))
-        sol = _num(r.get("gen_solar_gwh"))
-        wnd = _num(r.get("gen_wind_gwh"))
-        oth = _num(r.get("gen_other_renewables_gwh"))
-        nuc = _num(r.get("gen_nuclear_gwh"))
-        col = _num(r.get("gen_coal_gwh"))
-        gas = _num(r.get("gen_gas_gwh"))
-        tot = hyd + sol + wnd + oth + nuc + col + gas
-        clean = hyd + sol + wnd + oth + nuc
-        re_var = sol + wnd
+        # _clean keeps a blank reading blank; _num would have turned it into a
+        # reported zero of generation.
+        hyd = _clean(r.get("gen_hydro_gwh"))
+        sol = _clean(r.get("gen_solar_gwh"))
+        wnd = _clean(r.get("gen_wind_gwh"))
+        oth = _clean(r.get("gen_other_renewables_gwh"))
+        nuc = _clean(r.get("gen_nuclear_gwh"))
+        col = _clean(r.get("gen_coal_gwh"))
+        gas = _clean(r.get("gen_gas_gwh"))
+        # summed over the sources that actually reported (Other RE never does)
+        parts = [v for v in (hyd, sol, wnd, oth, nuc, col, gas)
+                 if not pd.isna(v)]
+        tot = float(np.sum(parts)) if parts else float("nan")
+        clean_parts = [v for v in (hyd, sol, wnd, oth, nuc) if not pd.isna(v)]
+        clean = float(np.sum(clean_parts)) if clean_parts else float("nan")
+        re_var = sum(v for v in (sol, wnd) if not pd.isna(v))
         rows.append({
             "scenario": "Actual",
             "calendar_year": yr,
@@ -497,8 +527,8 @@ def project_technology_mix(
             "Nuclear": nuc, "Coal": col, "Gas": gas,
             "total_gen_gwh": tot,
             "clean_gen_gwh": clean,
-            "clean_share_pct": (clean / tot * 100.0) if tot > 0 else 0.0,
-            "variable_re_share_pct": (re_var / tot * 100.0) if tot > 0 else 0.0,
+            "clean_share_pct": (clean / tot * 100.0) if tot and tot > 0 else float("nan"),
+            "variable_re_share_pct": (re_var / tot * 100.0) if tot and tot > 0 else float("nan"),
         })
 
     # Future projection per scenario
@@ -621,11 +651,18 @@ def compute_supply_adequacy(
         10% - 25%: 'Optimal / Healthy Reserve Corridor'
         > 25%: 'Overcapacity / Capacity Payment Burden'
     """
-    # Reported demand path from history
-    h_dem = dict(zip(hist["calendar_year"], hist["demand_gwh"].fillna(hist["gen_total_gwh"])))
+    # Reported demand path from history.  A year with no demand reading stays
+    # blank -- substituting that year's generation would label one quantity's
+    # number as another quantity's name.
+    _dem = pd.to_numeric(hist["demand_gwh"], errors="coerce")
+    h_dem = {int(y): v for y, v in zip(hist["calendar_year"], _dem)
+             if not pd.isna(v)}
 
-    # Demand projected at Base GDP elasticity (~4.8%/yr) for benchmark comparison
-    last_dem = h_dem.get(HISTORY_END, 175440.0)
+    # Demand projected at Base GDP elasticity (~4.8%/yr) for benchmark
+    # comparison, compounded from the last year demand was actually reported.
+    _dem_years = [y for y in h_dem if y <= HISTORY_END]
+    dem_anchor_year = max(_dem_years) if _dem_years else 0
+    last_dem = h_dem.get(dem_anchor_year, float("nan"))
     dem_growth = 0.048
 
     rows = []
@@ -636,14 +673,21 @@ def compute_supply_adequacy(
         supply_gwh = r["total_gen_gwh"]
 
         if yr <= HISTORY_END:
-            demand_gwh = h_dem.get(yr, supply_gwh)
+            demand_gwh = h_dem.get(yr, float("nan"))
+        elif not h_dem:
+            demand_gwh = float("nan")
         else:
-            demand_gwh = last_dem * ((1.0 + dem_growth) ** (yr - HISTORY_END))
+            demand_gwh = last_dem * ((1.0 + dem_growth) ** (yr - dem_anchor_year))
 
-        gap_gwh = supply_gwh - demand_gwh
-        margin_pct = (gap_gwh / demand_gwh * 100.0) if demand_gwh > 0 else 0.0
+        has_demand = isinstance(demand_gwh, (int, float)) and not pd.isna(demand_gwh)
+        gap_gwh = (supply_gwh - demand_gwh) if has_demand else float("nan")
+        margin_pct = (gap_gwh / demand_gwh * 100.0) if has_demand and demand_gwh > 0 \
+            else float("nan")
 
-        if margin_pct < 10.0:
+        if not has_demand:
+            status = "No demand reading"
+            status_color = "#64748B"
+        elif margin_pct < 10.0:
             status = "Deficit Risk"
             status_color = "#EF4444"
         elif margin_pct <= 25.0:
@@ -685,10 +729,11 @@ def project_indigenous_vs_imports(
     # Historical
     for _, r in hist[hist["calendar_year"] >= PRIMARY_START].iterrows():
         yr = int(r["calendar_year"])
-        tpes = _num(r.get("tpes_toe"))
-        imp = _num(r.get("imports_toe"))
-        dom = max(0.0, tpes - imp)
-        imp_share = (imp / tpes * 100.0) if tpes > 0 else 0.0
+        tpes = _clean(r.get("tpes_toe"))
+        imp = _clean(r.get("imports_toe"))
+        known = pd.notna(tpes) and pd.notna(imp)
+        dom = (tpes - imp) if known else float("nan")
+        imp_share = (imp / tpes * 100.0) if known and tpes > 0 else float("nan")
         rows.append({
             "scenario": "Actual",
             "calendar_year": yr,
@@ -701,17 +746,32 @@ def project_indigenous_vs_imports(
 
     # Projections per scenario
     scenarios = tpes_forecast["scenario"].unique() if not tpes_forecast.empty else SCENARIO_ORDER
-    # 2024 baseline
-    h2024 = hist[hist["calendar_year"] == HISTORY_END].iloc[0] if (hist["calendar_year"] == HISTORY_END).any() else hist.iloc[-1]
-    tpes_2024 = _num(h2024.get("tpes_toe"), 75727780.0)
-    # In 2024 import share was ~28% (taking petroleum + LNG + coal imports)
-    imp_share_2024 = 28.5
+
+    # Baseline for the paths: the last year the record actually reported the
+    # number, not "2024" by assumption.  Imports stop being filled after 2018,
+    # so the import trajectory starts from the 2018 share and the page says so.
+    def _last_report(col: str, positive_only: bool = False) -> tuple:
+        if col not in hist.columns:
+            return float("nan"), 0
+        s = hist[["calendar_year", col]].copy()
+        s[col] = pd.to_numeric(s[col], errors="coerce")
+        s = s.dropna()
+        if positive_only:
+            s = s[s[col] > 0]
+        if s.empty:
+            return float("nan"), 0
+        return float(s[col].iloc[-1]), int(s["calendar_year"].iloc[-1])
+
+    tpes_base, tpes_base_year = _last_report("tpes_toe")
+    imp_share_base, imp_share_year = _last_report("import_share_pct",
+                                                  positive_only=True)
 
     # Trajectories under scenarios:
     # High green transition: import share drops to 16% by 2035 (indigenous hydro, solar, Thar coal)
     # Base reference: import share moderates to 22%
     # Low reform: import share remains elevated around 31%
     target_shares = {"High": 16.0, "Base": 22.0, "Low": 31.0}
+    span = max(horizon - tpes_base_year, 1)
 
     for sc in scenarios:
         sc_path = tpes_forecast[(tpes_forecast["scenario"] == sc) & (tpes_forecast["series"] == "tpes_toe")]
@@ -719,9 +779,11 @@ def project_indigenous_vs_imports(
         t_target = target_shares.get(sc, 22.0)
 
         for yr in range(FORECAST_START, horizon + 1):
-            tpes_val = tpes_lookup.get(yr, tpes_2024 * ((1.0 + 0.03) ** (yr - HISTORY_END)))
-            progress = (yr - HISTORY_END) / (horizon - HISTORY_END)
-            cur_imp_share = imp_share_2024 + (t_target - imp_share_2024) * progress
+            tpes_val = (tpes_lookup.get(yr) if yr in tpes_lookup
+                        else tpes_base * ((1.0 + 0.03) ** (yr - tpes_base_year)))
+            progress = (yr - tpes_base_year) / span
+            cur_imp_share = (imp_share_base + (t_target - imp_share_base) * progress
+                             if pd.notna(imp_share_base) else float("nan"))
             imp_val = tpes_val * (cur_imp_share / 100.0)
             dom_val = max(0.0, tpes_val - imp_val)
 

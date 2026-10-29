@@ -15,8 +15,7 @@ Model -- a four-pillar sustainability index (the "extended trilemma"):
                  gas self-sufficiency, generation diversity (1 - HHI)
     ECONOMY      system economics: grid (T&D) efficiency, LNG unit-price
                  pressure, per-unit cost of delivered electricity trends
-    ENVIRONMENT  decarbonisation: renewable generation share, CO2 intensity
-                 of electricity (kg CO2 / MWh)
+    ENVIRONMENT  decarbonisation: renewable generation share
     ACCESS       modern energy access: per-capita electricity consumption,
                  demand coverage
 
@@ -65,8 +64,6 @@ TARGET_GAS_SS           = 70.0    # % domestic gas / demand
 TARGET_RE_SHARE         = 60.0    # % RE in generation  -> full score
 TARGET_GRID_EFF         = 90.0    # % delivered / generated -> full score
 TARGET_PC_KWH           = 1000.0  # kWh per capita electricity -> full score
-TARGET_CO2_INTENSITY    = 350.0   # kg CO2 / MWh electricity -> floor reference
-CO2_INTENSITY_SPAN      = 550.0   # kg/MWh mapped to score 0
 
 GEN_MIX_COLS = [
     "gen_hydro_gwh", "gen_solar_gwh", "gen_wind_gwh",
@@ -158,17 +155,28 @@ def build_indicator_frame(
     if re_df is not None and not re_df.empty:
         r = re_df.drop_duplicates("calendar_year").set_index("calendar_year")
         r = r.reindex(years)
-        gen_cols = [c for c in GEN_MIX_COLS if c in r.columns]
-        mix = r[gen_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0)
-        total_gen = mix.sum(axis=1)
-        re_gen = mix[[c for c in RE_COLS if c in mix.columns]].sum(axis=1) \
-            if any(c in mix.columns for c in RE_COLS) else np.nan
+        # A column the record never filled (gen_other_renewables_gwh is NULL in
+        # every year) is not a zero, it is an absent source: drop it instead of
+        # summing it, or it would silently hold back a year from being scored.
+        gen_cols = [c for c in GEN_MIX_COLS
+                    if c in r.columns
+                    and pd.to_numeric(r[c], errors="coerce").notna().any()]
+        mix = r[gen_cols].apply(pd.to_numeric, errors="coerce")
+        # min_count matters more than the sum itself: a year that leaves any
+        # reported fuel blank (1999 has no coal/gas/nuclear row) has no total,
+        # rather than a total quietly missing three plants.
+        total_gen = mix.sum(axis=1, min_count=len(mix.columns))
+        re_cols = [c for c in RE_COLS if c in mix.columns]
+        re_gen = (mix[re_cols].sum(axis=1, min_count=len(re_cols))
+                  if re_cols else np.nan)
         idx["gen_total_gwh"] = total_gen
         idx["re_gen_gwh"] = re_gen
         idx["re_share_pct"] = _safe_div(re_gen, total_gen) * 100.0
         # generation diversity  1 - HHI  (0 = mono-source, ->1 = even mix)
-        shares = mix.div(total_gen.replace(0, np.nan), axis=0).fillna(0.0)
-        hhi = (shares ** 2).sum(axis=1)
+        # No fillna here: blanking the shares to 0 read as "every source equally
+        # small", which scored an unreported year as perfect diversity.
+        shares = mix.div(total_gen.replace(0, np.nan), axis=0)
+        hhi = (shares ** 2).sum(axis=1, min_count=len(mix.columns))
         idx["diversity_idx"] = (1.0 - hhi) * 100.0
 
     # ── grid efficiency (generation + T&D losses) ───────────────────────────
@@ -184,10 +192,18 @@ def build_indicator_frame(
 
     # ── import dependence (primary supply, all sources) ─────────────────────
     if ps_df is not None and not ps_df.empty:
-        p = ps_df.groupby("calendar_year", as_index=False).agg(
-            domestic_toe=("supply_toe", "sum"), imports_toe=("imports_toe", "sum"))
+        # min_count=1 matters: the record stops filling imports_toe after 2022
+        # (every row NULL), and a plain sum() turns an all-NULL year into a real
+        # 0 -- which then scores as "nothing imported, perfect security".
+        p = (ps_df.groupby("calendar_year")[["supply_toe", "imports_toe"]]
+             .sum(min_count=1)
+             .rename(columns={"supply_toe": "domestic_toe"})
+             .reset_index())
         p = p.drop_duplicates("calendar_year").set_index("calendar_year").reindex(years)
-        total_supply = (p["domestic_toe"].fillna(0) + p["imports_toe"].fillna(0))
+        # Both halves have to be on the record for the share to mean anything:
+        # a year whose imports rows are absent gets a blank, not "0% imported,
+        # perfect security".
+        total_supply = p[["domestic_toe", "imports_toe"]].sum(axis=1, min_count=2)
         idx["import_dep_pct"] = _safe_div(p["imports_toe"], total_supply) * 100.0
 
     # ── gas self-sufficiency ─────────────────────────────────────────────────
@@ -216,9 +232,6 @@ def build_indicator_frame(
         pop = pd.to_numeric(e["population"], errors="coerce")
         idx["co2_tonnes"] = co2_t
         idx["population"] = pop
-        if "gen_total_gwh" in idx.columns:
-            # t CO2 per GWh == kg CO2 per MWh
-            idx["co2_intensity_kg_mwh"] = _safe_div(co2_t, idx["gen_total_gwh"])
         if "consumption_gwh" in idx.columns:
             idx["pc_elec_kwh"] = _safe_div(idx["consumption_gwh"] * 1e6, pop)
         elif "gen_total_gwh" in idx.columns:
@@ -244,9 +257,11 @@ def build_indicator_frame(
 
     scores["environment"]["re_share"] = _score_higher_is_better(
         _col(idx, "re_share_pct"), TARGET_RE_SHARE, 5.0)
-    scores["environment"]["co2_int"] = _score_lower_is_better(
-        _col(idx, "co2_intensity_kg_mwh"), TARGET_CO2_INTENSITY,
-        TARGET_CO2_INTENSITY + CO2_INTENSITY_SPAN)
+    # A carbon-intensity component was dropped here on purpose.  The warehouse
+    # holds national CO2 (all fuels, all sectors) but only electricity
+    # generation, so the ratio lands near 1,200-2,200 kg/MWh against a
+    # power-sector benchmark of 350 -- every year scored a flat 0 and pulled the
+    # Environmental pillar down by a third on a scope error, not on evidence.
 
     scores["access"]["pc_elec"] = _score_higher_is_better(
         _col(idx, "pc_elec_kwh"), TARGET_PC_KWH, 100.0)
@@ -256,13 +271,19 @@ def build_indicator_frame(
     for pillar, comp_map in scores.items():
         frame = pd.DataFrame(comp_map, index=idx.index)
         wsum = frame.notna().sum(axis=1)
-        idx[f"score_{pillar}"] = frame.mean(axis=1)
+        # A pillar is only reported for a year when every one of its components
+        # was reported for that year.  Averaging over the parts that happen to
+        # exist let 2024 print "Supply security 100" out of a single diversity
+        # number, with import dependence and gas self-sufficiency unreported.
+        idx[f"score_{pillar}"] = frame.mean(axis=1).where(wsum == len(frame.columns))
         idx[f"{pillar}_n_components"] = wsum
         for c in frame.columns:
             idx[f"sc_{pillar}_{c}"] = frame[c]
 
-    # unweighted composite (mean of available pillar scores)
-    idx["score_composite"] = idx[[f"score_{p}" for p in PILLARS]].mean(axis=1)
+    # unweighted composite (mean of the four pillars, only when all four scored)
+    pillar_cols = [f"score_{p}" for p in PILLARS]
+    idx["score_composite"] = idx[pillar_cols].mean(axis=1).where(
+        idx[pillar_cols].notna().all(axis=1))
 
     return idx.reset_index()
 
@@ -276,19 +297,51 @@ def _years(df: Optional[pd.DataFrame]) -> Sequence[int]:
 # ══════════════════════ 2. weighting + evaluation year ═══════════════════════
 
 def apply_weights(ind_df: pd.DataFrame, weights: Dict[str, float]) -> pd.DataFrame:
-    """Attach the weighted composite score for one pillar-weighting scheme."""
+    """Attach the weighted composite score for one pillar-weighting scheme.
+
+    A year scores only when all four pillars were reported for that year.  Nothing
+    is carried forward: the earlier `.ffill()` let 2019-2024 print a composite
+    built on pillar scores from 2018, so the card's year and the number's year
+    disagreed -- the year label said 2024, the evidence said 2018.
+
+    The last honest reading is found by `snapshot_row`, which returns the row it
+    actually read, so the page can label the card with that year.
+    """
     if ind_df.empty:
         return ind_df
     out = ind_df.copy()
-    num = pd.Series(0.0, index=out.index)
-    den = pd.Series(0.0, index=out.index)
-    for p, w in weights.items():
+    known = {p: f"score_{p}" for p in weights if f"score_{p}" in out.columns}
+    if not known:
+        out["score_weighted"] = np.nan
+        return out
+    pillars = pd.DataFrame({p: pd.to_numeric(out[c], errors="coerce")
+                            for p, c in known.items()}, index=out.index)
+    total_w = sum(float(weights[p]) for p in pillars.columns) or 1.0
+    num = sum(pillars[p] * float(weights[p]) for p in pillars.columns)
+    complete = pillars.notna().all(axis=1) & (len(pillars.columns) == len(PILLARS))
+    out["score_weighted"] = ((num / total_w).clip(0, 100)).where(complete)
+    return out
+
+
+def pillar_last_seen(ind_df: pd.DataFrame, year: int) -> Dict[str, int]:
+    """The year each pillar's most recent score up to `year` actually came from.
+
+    Reporting years differ by pillar (each stops wherever its own sources stop), so
+    a "current" pillar score is often several years old and the page has to say
+    which year it is reading.
+    """
+    out: Dict[str, int] = {}
+    hist = ind_df[ind_df["calendar_year"] <= year]
+    if hist.empty:
+        hist = ind_df
+    for p in PILLARS:
         col = f"score_{p}"
-        if col in out.columns:
-            v = pd.to_numeric(out[col], errors="coerce")
-            num = num + v.fillna(0.0) * w
-            den = den + v.notna().astype(float) * w
-    out["score_weighted"] = (num / den.replace(0, np.nan)).clip(0, 100)
+        year_seen = 0
+        if col in hist.columns:
+            s = hist[["calendar_year", col]].dropna()
+            if not s.empty:
+                year_seen = int(s["calendar_year"].iloc[-1])
+        out[p] = year_seen
     return out
 
 
@@ -418,7 +471,14 @@ def select_optimal_package(strategies: List[dict], weights: Dict[str, float],
 
 def _pillar_base_and_slope(ind_df: pd.DataFrame, base_year: int,
                            window: int = 8) -> Dict[str, tuple]:
-    """Linear trend (last `window` years) per pillar, slope clamped for BAU."""
+    """Starting score and yearly drift per pillar, slope clamped for BAU.
+
+    The base is the pillar's own last reported score up to `base_year`, because
+    a pillar's record ends whenever its sources end (security trails economy and
+    environment).  The projection continues that number, and the page says which year it
+    came from -- the years between that last report and 2024 stay blank instead
+    of being drawn as a flat line.
+    """
     out = {}
     hist = ind_df[ind_df["calendar_year"] <= base_year]
     for p in PILLARS:
@@ -426,13 +486,14 @@ def _pillar_base_and_slope(ind_df: pd.DataFrame, base_year: int,
         base = 50.0
         slope = 0.0
         if col in hist.columns and not hist.empty:
-            sub = hist.tail(window)
-            ys = sub["calendar_year"].astype(float)
-            vs = pd.to_numeric(sub[col], errors="coerce")
-            mask = vs.notna() & ys.notna()
-            if mask.sum() >= 3:
-                base = float(vs.dropna().iloc[-1])
-                slope = float(np.polyfit(ys[mask], vs[mask], 1)[0])
+            sub = hist[["calendar_year", col]].dropna().tail(window)
+            if len(sub) >= 3:
+                ys = sub["calendar_year"].astype(float)
+                vs = sub[col].astype(float)
+                base = float(vs.iloc[-1])
+                slope = float(np.polyfit(ys, vs, 1)[0])
+            elif len(sub) == 1:
+                base = float(sub[col].iloc[-1])
         out[p] = (base, float(np.clip(slope, -1.0, 1.5)))
     return out
 
@@ -482,8 +543,11 @@ def project_pathways(ind_df: pd.DataFrame, weights: Dict[str, float],
         for p in PILLARS:
             base, slope = baselines[p]
             if y <= base_year:
+                # Reported years only.  A year whose pillar was not reported
+                # stays blank -- holding the last score flat through 2019-2024
+                # would draw an unreported year as if the record said it.
                 actual = _pillar_actual(ind_df, y, p)
-                rec[f"{p}_bau"] = actual if actual is not None else base
+                rec[f"{p}_bau"] = (actual if actual is not None else np.nan)
                 rec[f"{p}_announced"] = rec[f"{p}_bau"]
                 rec[f"{p}_optimal"] = rec[f"{p}_bau"]
             else:
@@ -494,7 +558,12 @@ def project_pathways(ind_df: pd.DataFrame, weights: Dict[str, float],
                 rec[f"{p}_announced"] = ann
                 rec[f"{p}_optimal"] = opt
         for pathway in ("bau", "announced", "optimal"):
-            num = sum(weights.get(p, 0) * rec[f"{p}_{pathway}"] for p in PILLARS)
+            vals = [rec[f"{p}_{pathway}"] for p in PILLARS]
+            if any(v is None or pd.isna(v) for v in vals):
+                # no composite for a year that is missing one of its pillars
+                rec[f"composite_{pathway}"] = np.nan
+                continue
+            num = sum(weights.get(p, 0) * v for p, v in zip(PILLARS, vals))
             den = sum(weights.get(p, 0) for p in PILLARS) or 1.0
             rec[f"composite_{pathway}"] = num / den
         rec["is_actual"] = y <= min(base_year, HISTORY_END)
@@ -543,3 +612,36 @@ def build_verdict(ind_df: pd.DataFrame, weights: Dict[str, float], package: dict
         "budget_bn": package["budget_bn"],
         "horizon": horizon,
     }
+
+
+# ══════════════════════ 6. budget score curve (for Q8 V5) ═══════════════════
+
+def budget_score_curve(ind_df: pd.DataFrame, weights: Dict[str, float],
+                       strategies: List[dict], base_year: int, horizon: int,
+                       budgets: List[float]) -> pd.DataFrame:
+    """For each annual budget, what composite score does the optimal package
+    reach at the horizon?  Same engine (select_optimal_package +
+    project_pathways), just run once per budget.  The curve answers
+    "how much more does the next bn of spend actually buy?" — the shape
+    (steep then flat) shows where the money stops helping."""
+    rows = []
+    for b in budgets:
+        if b <= 0:
+            rows.append({"budget_bn": float(b), "committed_bn": 0.0,
+                         "n_chosen": 0, "composite_at_horizon": np.nan})
+            continue
+        pkg = select_optimal_package(strategies, weights, float(b))
+        pw = project_pathways(ind_df, weights, pkg, base_year, horizon, strategies)
+        if pw.empty:
+            comp = np.nan
+        else:
+            hor = pw[pw["calendar_year"] == horizon]
+            hor = hor.iloc[0] if not hor.empty else pw.iloc[-1]
+            comp = float(hor.get("composite_optimal", np.nan))
+        rows.append({
+            "budget_bn": float(b),
+            "committed_bn": float(pkg["committed_bn"]),
+            "n_chosen": int(len(pkg["chosen"])),
+            "composite_at_horizon": comp,
+        })
+    return pd.DataFrame(rows)

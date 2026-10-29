@@ -94,17 +94,19 @@ def visual1_supply_demand(hist: pd.DataFrame, unit: str, factor: float) -> go.Fi
     dem = hist["total_final_consumption_toe"] * factor
 
     fig.add_trace(go.Scatter(
-        x=x, y=sup, mode="lines+markers", name="Primary Supply (TPES)",
+        x=x, y=sup, mode="lines+markers", name="Primary Supply",
         line=dict(color="#00A6FB", width=2.8, shape="spline", smoothing=0.7),
         marker=dict(size=4, color="#00A6FB"),
         fill="tozeroy", fillcolor="rgba(0, 166, 251, 0.12)",
+        connectgaps=False,
         hovertemplate="Supply: <b>%{y:,.1f}</b> " + unit + "<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
-        x=x, y=dem, mode="lines+markers", name="Final Consumption (TFC)",
+        x=x, y=dem, mode="lines+markers", name="Final Consumption",
         line=dict(color="#F59E0B", width=2.8, shape="spline", smoothing=0.7),
         marker=dict(size=4, color="#F59E0B"),
         fill="tozeroy", fillcolor="rgba(245, 158, 11, 0.12)",
+        connectgaps=False,
         hovertemplate="Demand: <b>%{y:,.1f}</b> " + unit + "<extra></extra>",
     ))
     _dark_theme(fig, height=330, y_title=f"Energy Balance ({unit})", x_title="Year")
@@ -155,7 +157,7 @@ def visual2_fuel_donut(mix: pd.DataFrame) -> go.Figure:
         hovertemplate="<b>%{label}</b><br>Share: <b>%{value:.1f}%</b><br>Supply: <b>%{customdata:,.0f}</b> TOE<extra></extra>",
     ))
     fig.add_annotation(
-        text=f"<b style='font-size:18px;color:#FFFFFF;'>{total_supply/1e6:.1f}M</b><br><span style='font-size:10px;color:#8B95A7;'>TOE Supply</span><br><b style='font-size:11px;color:#10B981;'>{yr}</b>",
+        text=f"<b style='font-size:18px;color:#FFFFFF;'>{total_supply/1e6:.1f}M</b><br><span style='font-size:10px;color:#8B95A7;'>Total Supply (TOE)</span><br><b style='font-size:11px;color:#10B981;'>{yr}</b>",
         x=0.5, y=0.5,
         font=dict(family=_FONT_FAMILY, color=_TEXT),
         showarrow=False,
@@ -198,7 +200,7 @@ def visual3_co2_bars(hist: pd.DataFrame, unit: str, factor: float) -> go.Figure:
         hovertemplate="Year %{x}: <b>%{y:,.1f}</b> " + unit + "<extra>Emissions</extra>",
     ))
     _dark_theme(fig, height=330, y_title=f"Emissions ({unit})",
-                x_title="Calendar Year (Latest Year Highlighted in Amber)")
+                x_title="Year")
     return fig
 
 
@@ -214,10 +216,11 @@ def visual4_generation_trajectory(hist: pd.DataFrame, unit: str, factor: float) 
     y = hist["generation_gwh"] * factor
 
     fig.add_trace(go.Scatter(
-        x=x, y=y, mode="lines+markers", name="Total Grid Generation",
+        x=x, y=y, mode="lines+markers", name="Power Generated",
         line=dict(color="#10B981", width=2.8, shape="spline", smoothing=0.7),
         marker=dict(size=4.5, color="#10B981"),
         fill="tozeroy", fillcolor="rgba(16, 185, 129, 0.12)",
+        connectgaps=False,
         hovertemplate="Generation: <b>%{y:,.1f}</b> " + unit + "<extra></extra>",
     ))
     _dark_theme(fig, height=330, y_title=f"Generation ({unit})", x_title="Calendar Year")
