@@ -24,10 +24,11 @@ APP_TITLE = "Pakistan National Energy Analytics Platform"
 APP_SUBTITLE = "Enterprise Decision-Grade Modeling, Scenario Projections & Optimization (1999–2035)"
 APP_ICON = "⚡"
 
-# "react"     -> the React portal on http://localhost:5173 is the login (local default)
-# "streamlit" -> the built-in Streamlit login gate protects the app directly.
-# On Streamlit Cloud, set LOGIN_MODE = "streamlit" in the app's Secrets to show login.
-LOGIN_MODE = str(_setting("LOGIN_MODE", "react")).strip().lower()
+# "streamlit" -> the built-in login gate (DEFAULT, so a fresh cloud deploy shows it)
+# "react"     -> the React portal on http://localhost:5173 is the login; run the
+#                Streamlit app login-free (local dev sets LOGIN_MODE=react in .env).
+# Override anywhere via env var or Streamlit Cloud secret named LOGIN_MODE.
+LOGIN_MODE = str(_setting("LOGIN_MODE", "streamlit")).strip().lower()
 
 # ---------- Color palette ----------
 COLORS = {
