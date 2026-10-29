@@ -79,7 +79,7 @@ energy_dashboard/
 ├── assets/login_hero.jpg         # hero image
 ├── requirements.txt
 ├── UNIT_GUIDE.md                 # unit strategy + formulas + verification
-└── energy_database_new (1).sql # MySQL schema + seed data (current dump, FY1999-2000..FY2025-26)
+└── energy_database_new.sql   # MySQL schema + seed data (current dump, FY1999-2000..FY2025-26)
 ```
 
 ---
@@ -101,7 +101,7 @@ energy_dashboard/
 ```sql
 CREATE DATABASE energy_database_new;
 USE energy_database_new;
-SOURCE "path/to/energy_database_new (1).sql";
+SOURCE "path/to/energy_database_new.sql";
 ```
 
 2. Set your MySQL credentials in `.env` (create if missing):
