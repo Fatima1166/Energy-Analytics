@@ -1,14 +1,33 @@
 import os
 
+
+def _setting(key, default):
+    """Resolve a config value: Streamlit Cloud secrets -> env var -> default.
+
+    Streamlit Community Cloud exposes its Secrets editor through ``st.secrets``
+    (not ``os.environ``), so a value set in the app's Secrets UI wins; otherwise
+    fall back to a local env var (XAMPP/dev), then the built-in default.
+    """
+    try:
+        import streamlit as st
+
+        secrets = st.secrets  # raises in bare mode when there is no secrets.toml
+        if key in secrets:
+            return secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+
 # ---------- App-level settings ----------
 APP_TITLE = "Pakistan National Energy Analytics Platform"
 APP_SUBTITLE = "Enterprise Decision-Grade Modeling, Scenario Projections & Optimization (1999–2035)"
 APP_ICON = "⚡"
 
-# Which login guards this dashboard:
-#   "react"     -> the React portal on http://localhost:5173 is the login (default)
-#   "streamlit" -> the built-in Streamlit login gate protects port 8501 directly
-LOGIN_MODE = os.getenv("LOGIN_MODE", "react").strip().lower()
+# "react"     -> the React portal on http://localhost:5173 is the login (local default)
+# "streamlit" -> the built-in Streamlit login gate protects the app directly.
+# On Streamlit Cloud, set LOGIN_MODE = "streamlit" in the app's Secrets to show login.
+LOGIN_MODE = str(_setting("LOGIN_MODE", "react")).strip().lower()
 
 # ---------- Color palette ----------
 COLORS = {
@@ -88,4 +107,4 @@ SCENARIOS = {
         "desc": "Major exploitation of southern & coastal wind corridors (25% wind growth)",
         "color": "#9B59B6",
     },
-}
+}
