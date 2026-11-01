@@ -1,4 +1,13 @@
 import os
+from pathlib import Path
+
+try:                                  # pick up local .env before anything reads os.getenv
+    from dotenv import load_dotenv
+
+    # absolute path: streamlit may be started from a different working directory
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except Exception:                     # dotenv optional on Streamlit Cloud
+    pass
 
 
 def _setting(key, default):
@@ -7,11 +16,28 @@ def _setting(key, default):
     Streamlit Community Cloud exposes its Secrets editor through ``st.secrets``
     (not ``os.environ``), so a value set in the app's Secrets UI wins; otherwise
     fall back to a local env var (XAMPP/dev), then the built-in default.
+
+    In Streamlit >=1.30 a bare ``st.secrets`` access with NO secrets file on
+    disk internally calls ``st.error()`` -- that would count as the first
+    Streamlit command and make ``st.set_page_config`` in app.py raise
+    StreamlitSetPageConfigMustBeFirstCommandError, killing the page before the
+    login screen.  So touch ``st.secrets`` only when a real secrets file exists
+    (Streamlit Cloud materialises one; local dev usually has none).
     """
     try:
         import streamlit as st
 
-        secrets = st.secrets  # raises in bare mode when there is no secrets.toml
+        # 1.40 keeps the resolved secrets.toml / secret-dir paths in config;
+        # if none of them exist on disk, st.secrets would render st.error().
+        paths = []
+        try:
+            paths = list(st.config.get_option("secrets.files"))
+        except Exception:
+            pass
+        if not any(Path(p).exists() for p in paths):
+            raise FileNotFoundError("no secrets file on disk")
+
+        secrets = st.secrets
         if key in secrets:
             return secrets[key]
     except Exception:
@@ -24,10 +50,12 @@ APP_TITLE = "Pakistan National Energy Analytics Platform"
 APP_SUBTITLE = "Enterprise Decision-Grade Modeling, Scenario Projections & Optimization (1999–2035)"
 APP_ICON = "⚡"
 
-# "react"     -> the React portal on http://localhost:5173 is the login (local default)
-# "streamlit" -> the built-in Streamlit login gate protects the app directly.
-# On Streamlit Cloud, set LOGIN_MODE = "streamlit" in the app's Secrets to show login.
-LOGIN_MODE = str(_setting("LOGIN_MODE", "react")).strip().lower()
+# "streamlit" -> the built-in Streamlit login gate protects the app directly
+#                 (design/animation copied 1:1 from the React login page).
+# "react"     -> skip the gate; the React portal on http://localhost:5173 is
+#                 the login and embeds this app (local dev only).
+# Override with env var or Streamlit Cloud Secrets LOGIN_MODE=react if needed.
+LOGIN_MODE = str(_setting("LOGIN_MODE", "streamlit")).strip().lower()
 
 # ---------- Color palette ----------
 COLORS = {

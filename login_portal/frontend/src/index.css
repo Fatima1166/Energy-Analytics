@@ -483,15 +483,17 @@ body {
 .input-group label {
   display: block;
   font-size: 11px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.45);
+  font-weight: 600;
+  color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 1px;
   margin-bottom: 6px;
+  text-align: left;
 }
 
 .input-wrapper {
   position: relative;
+  width: 100%;
 }
 
 .input-icon {
@@ -509,6 +511,8 @@ body {
 
 .input-wrapper input {
   width: 100%;
+  height: 48px;
+  box-sizing: border-box;
   padding: 14px 16px 14px 48px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -528,6 +532,16 @@ body {
   border-color: var(--color-navy-500);
   background: rgba(22, 163, 74, 0.06);
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12), 0 0 20px rgba(22, 163, 74, 0.08);
+}
+
+.input-wrapper input:-webkit-autofill,
+.input-wrapper input:-webkit-autofill:hover,
+.input-wrapper input:-webkit-autofill:focus,
+.input-wrapper input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #071a0e inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+  caret-color: #ffffff !important;
 }
 
 .input-wrapper:has(input:focus) .input-icon {
@@ -558,10 +572,10 @@ body {
 /* Submit Button */
 .login-btn {
   width: 100%;
-  padding: 16px;
+  padding: 15px 24px;
   margin-top: 12px;
-  background: linear-gradient(135deg, var(--color-navy-500), #1d4ed8);
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 1px solid rgba(52, 211, 153, 0.35);
   border-radius: 14px;
   color: white;
   font-weight: 600;
@@ -574,6 +588,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   gap: 10px;
 }
 

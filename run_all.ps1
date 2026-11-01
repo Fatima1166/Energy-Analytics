@@ -1,10 +1,11 @@
 <#
-    run_all.ps1 -- start the whole Energy Analytics stack with ONE command.
+    run_all.ps1 -- start the Energy Analytics stack with ONE command.
 
-        MySQL (XAMPP)   127.0.0.1:3306
-        Flask API       127.0.0.1:5000   (bcrypt login endpoint)
-        Streamlit       127.0.0.1:8501   (dashboard, embedded in the portal)
-        React portal    127.0.0.1:5173   <-- open this one
+        Streamlit       127.0.0.1:8501   <-- open this one (login page + dashboard)
+        MySQL (XAMPP)   127.0.0.1:3306   (dev data backend; cloud uses energy.db)
+
+    The React portal (:5173) and Flask API (:5000) are no longer started --
+    LOGIN_MODE=streamlit in .env makes app.py show the login itself.
 
     Usage:
         powershell -ExecutionPolicy Bypass -File .\run_all.ps1
@@ -22,8 +23,6 @@ $py     = Join-Path $root '.venv\Scripts\python.exe'
 # Flask and Vite all came up fine.
 $st     = $py
 $stArgs = @('-m', 'streamlit')
-$flask  = Join-Path $root 'login_portal\api_server.py'
-$fe     = Join-Path $root 'login_portal\frontend'
 $mysqld = 'D:\Fatima Programs\xampp\mysql\bin\mysqld.exe'
 $myini  = 'D:\Fatima Programs\xampp\mysql\bin\my.ini'
 
@@ -50,36 +49,16 @@ function Wait-Port([int]$Port, [int]$Seconds, [string]$Name) {
 }
 
 Write-Host ""
-Write-Host "  Energy Analytics - starting all services" -ForegroundColor Cyan
+Write-Host "  Energy Analytics - starting services" -ForegroundColor Cyan
 Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
 
-# 1) MySQL -------------------------------------------------------------------
-if (Test-Port 3306) {
-    Write-Host "  [1/4] MySQL          already running on 3306" -ForegroundColor Green
-} else {
-    Write-Host "  [1/4] MySQL          starting..." -ForegroundColor Yellow
-    if (Test-Path $mysqld) {
-        Start-Process -FilePath $mysqld -ArgumentList "--defaults-file=`"$myini`"" -WindowStyle Hidden
-        if (Wait-Port 3306 45 'MySQL') { Write-Host "        ready" -ForegroundColor Green }
-    } else {
-        Write-Host "        mysqld not found - start MySQL from XAMPP Control Panel" -ForegroundColor Red
-    }
-}
-
-# 2) Flask API ---------------------------------------------------------------
-if (Test-Port 5000) {
-    Write-Host "  [2/4] Flask API      already running on 5000" -ForegroundColor Green
-} else {
-    Write-Host "  [2/4] Flask API      starting..." -ForegroundColor Yellow
-    Start-Process -FilePath $py -ArgumentList "`"$flask`"" -WorkingDirectory $root -WindowStyle Minimized
-    if (Wait-Port 5000 40 'Flask API') { Write-Host "        ready" -ForegroundColor Green }
-}
-
-# 3) Streamlit dashboard -----------------------------------------------------
+# 1) Streamlit dashboard (login gate built in) -------------------------------
 if (Test-Port 8501) {
-    Write-Host "  [3/4] Streamlit      already running on 8501" -ForegroundColor Green
+    Write-Host "  [1/2] Streamlit      already running on 8501" -ForegroundColor Green
+    Write-Host "        NOTE: if it was started before the login change, stop it" -ForegroundColor Yellow
+    Write-Host "        first with .\stop_all.ps1 so the new LOGIN_MODE loads." -ForegroundColor Yellow
 } else {
-    Write-Host "  [3/4] Streamlit      starting..." -ForegroundColor Yellow
+    Write-Host "  [1/2] Streamlit      starting..." -ForegroundColor Yellow
     if (-not (Test-Path $py)) {
         Write-Host "        .venv\Scripts\python.exe not found - create the venv first (README step 2)" -ForegroundColor Red
     } else {
@@ -90,36 +69,22 @@ if (Test-Port 8501) {
     }
 }
 
-# 4) React login portal ------------------------------------------------------
-if (Test-Port 5173) {
-    Write-Host "  [4/4] React portal   already running on 5173" -ForegroundColor Green
+# 2) MySQL (optional dev backend; skipped if it is not installed) -------------
+if (Test-Port 3306) {
+    Write-Host "  [2/2] MySQL          already running on 3306" -ForegroundColor Green
+} elseif (Test-Path $mysqld) {
+    Write-Host "  [2/2] MySQL          starting..." -ForegroundColor Yellow
+    Start-Process -FilePath $mysqld -ArgumentList "--defaults-file=`"$myini`"" -WindowStyle Hidden
+    if (Wait-Port 3306 45 'MySQL') { Write-Host "        ready" -ForegroundColor Green }
 } else {
-    Write-Host "  [4/4] React portal   starting (vite)..." -ForegroundColor Yellow
-    $viteJs  = Join-Path $fe 'node_modules\vite\bin\vite.js'
-    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
-
-    if (-not (Test-Path (Join-Path $fe 'node_modules'))) {
-        Write-Host "        node_modules missing - npm install (first time only, a few minutes)..." -ForegroundColor Yellow
-        Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'npm install' -WorkingDirectory $fe -Wait -WindowStyle Minimized
-    }
-
-    if ((Test-Path $viteJs) -and $nodeCmd) {
-        # run vite directly: the most reliable path, no npm wrapper involved
-        Start-Process -FilePath $nodeCmd.Source `
-            -ArgumentList "`"$viteJs`"", '--port', '5173', '--strictPort' `
-            -WorkingDirectory $fe -WindowStyle Minimized
-    } else {
-        Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'npm run dev' -WorkingDirectory $fe -WindowStyle Minimized
-    }
-    if (Wait-Port 5173 120 'Vite dev server') { Write-Host "        ready" -ForegroundColor Green }
+    Write-Host "  [2/2] MySQL          not installed - app will use energy.db (SQLite)" -ForegroundColor DarkGray
 }
 
 Write-Host ""
 Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host "   LOGIN PAGE   ->   http://localhost:5173" -ForegroundColor White
-Write-Host "   Dashboard    ->   http://localhost:8501   (opens inside the portal)" -ForegroundColor DarkGray
+Write-Host "   LOGIN + DASHBOARD  ->   http://localhost:8501" -ForegroundColor White
 Write-Host "  ============================================================" -ForegroundColor Cyan
 Write-Host "   Stop everything with:  .\stop_all.ps1" -ForegroundColor DarkGray
 Write-Host ""
 
-if (-not $NoBrowser) { Start-Process 'http://localhost:5173' }
+if (-not $NoBrowser) { Start-Process 'http://localhost:8501' }
