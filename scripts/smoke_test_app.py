@@ -2,9 +2,9 @@
 scripts/smoke_test_app.py -- headless smoke test of every dashboard.
 
 Runs the Streamlit app with ``streamlit.testing.v1.AppTest`` and switches the
-sidebar radio through all registered dashboards, failing loudly on any
-exception.  This is the check that catches import errors, bad Plotly calls and
-missing session state without opening a browser.
+sidebar dashboard selector through all registered dashboards, failing loudly on
+any exception.  This is the check that catches import errors, bad Plotly calls
+and missing session state without opening a browser.
 
 Usage (from the project root):
 
@@ -37,7 +37,12 @@ for stream in (sys.stdout, sys.stderr):
 
 from streamlit.testing.v1 import AppTest          # noqa: E402
 
+from core.auth import SESSION_USER                # noqa: E402
 from dashboards.registry import DASHBOARDS        # noqa: E402
+
+# The app stops at the login screen unless a user is in session state, so the
+# test seeds one and gets past the gate.
+_TEST_USER = {"id": 1, "username": "smoke", "full_name": "Smoke Test"}
 
 
 def describe(at: AppTest) -> str:
@@ -53,6 +58,7 @@ def main() -> int:
     failures = 0
     for dashboard in DASHBOARDS:
         at = AppTest.from_file(str(ROOT / "app.py"), default_timeout=300)
+        at.session_state[SESSION_USER] = _TEST_USER
         at.run()
         if at.exception:
             print(f"[FAIL] {dashboard['label']}: app did not start -> {describe(at)}")

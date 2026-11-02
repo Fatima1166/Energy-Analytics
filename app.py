@@ -39,6 +39,9 @@ if current_user() is not None:
         st.rerun()
     st.sidebar.divider()
 
+# ---------------- Sidebar: dashboard selector ----------------
+# The stylesheet is dark-only, so the label colour is fixed.
+st.sidebar.divider()
 st.sidebar.markdown(
     '<div style="color:#8B95A7;font-size:11px;text-transform:uppercase;'
     'letter-spacing:1px;padding:4px 12px 8px;">Dashboards</div>',
