@@ -1,6 +1,6 @@
 # Pakistan Renewable Energy Outlook Dashboard
 
-An interactive energy analytics platform — **React login portal + Streamlit dashboard** — backed by MySQL.
+An interactive energy analytics platform — **Streamlit dashboard with a built-in login screen** — backed by MySQL.
 
 ---
 
@@ -18,11 +18,9 @@ The launcher starts everything and opens the browser:
 | # | Service | Port |
 |---|---|---|
 | 1 | MySQL (XAMPP) | 3306 |
-| 2 | Flask API (bcrypt login) | 5000 |
-| 3 | Streamlit dashboard | 8501 |
-| 4 | **React login portal ← open this** | **5173** |
+| 2 | **Streamlit dashboard + login ← open this** | **8501** |
 
-**Open http://localhost:5173** → sign in → the dashboard loads inside the portal.
+**Open http://localhost:8501** → sign in → the dashboard loads.
 
 Stop everything:
 
@@ -41,11 +39,11 @@ powershell -ExecutionPolicy Bypass -File .\stop_all.ps1
 ```
 energy_dashboard/
 ├── run_all.ps1 / run_all.bat     # one-command launcher
-├── stop_all.ps1                  # stops portal + API + dashboard
+├── stop_all.ps1                  # stops the dashboard
 ├── app.py                        # Streamlit entry point
 ├── config/                       # settings (incl. LOGIN_MODE) + MySQL connection
 ├── core/
-│   ├── auth.py                   # optional Streamlit login screen (LOGIN_MODE)
+│   ├── auth.py                   # built-in Streamlit login screen (LOGIN_MODE)
 │   ├── units.py                  # unit registry + conversion engine
 │   ├── unit_slicer.py            # sidebar unit selection (per-dashboard domains)
 │   ├── queries.py                # SQL (all in base units)
@@ -70,11 +68,6 @@ energy_dashboard/
 │   ├── verify_q7_cost.py         # Q7 numbers + sanity checks, from live MySQL
 │   ├── audit_axes.py             # prints every Q4/Q5/Q6/Q7 axis title
 │   └── smoke_test_app.py         # headless render check of every dashboard
-├── login_portal/                 # React login portal + Flask API
-│   ├── api_server.py             # Flask API (port 5000)
-│   ├── db_core.py                # MySQL auth helpers
-│   ├── generate_hash.py          # create a bcrypt user
-│   └── frontend/                 # React + Vite (port 5173)
 ├── sql/unit_dimension.sql        # dim_unit + conversion views
 ├── assets/login_hero.jpg         # hero image
 ├── requirements.txt
@@ -89,7 +82,6 @@ energy_dashboard/
 | Tool | Version |
 |---|---|
 | Python | 3.10+ |
-| Node.js | 18+ (for the React portal) |
 | MySQL / MariaDB | 8.0+ / 10.4+ (XAMPP is fine) |
 
 ---
@@ -128,9 +120,6 @@ DB_PORT=3306
 cd "D:\Fatima Projects\energy_dashboard"
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-
-cd login_portal\frontend
-npm install
 ```
 
 > Use `python.exe -m pip` / `python.exe -m streamlit`, **not** the
@@ -146,28 +135,26 @@ npm install
 powershell -ExecutionPolicy Bypass -File .\run_all.ps1
 ```
 
-Then open **http://localhost:5173**.
+Then open **http://localhost:8501**.
 
 ---
 
 ## How Login Works
 
 ```
-Browser  →  http://localhost:5173   (React portal)
+Browser  →  http://localhost:8501   (Streamlit)
                 │
-        POST /api/login   (Vite proxies /api → :5000)
+        core/auth.py login screen
                 ▼
-        Flask API  (:5000)  ──bcrypt.checkpw──►  MySQL `dim_users`
+        bcrypt / credential check  ──►  `dim_users` (MySQL or energy.db)
                 │
         success │ failure
                 ▼            ▼
-        iframe loads     error message
-        http://localhost:8501
-        (Streamlit dashboard)
+        dashboard loads   error message
 ```
 
 * Credentials are bcrypt hashes in the `dim_users` table.
-* The dashboard is embedded in the portal, so the login is asked **once**.
+* The login is shown by the Streamlit app itself — one app, one port.
 
 ### LOGIN_MODE (optional)
 
@@ -176,8 +163,8 @@ the dashboard:
 
 | Value | Behaviour |
 |---|---|
-| `react` *(default)* | The React portal on :5173 is the login; :8501 opens directly (needed for the iframe). |
-| `streamlit` | The built-in Streamlit login screen in `core/auth.py` protects :8501 on its own — useful when running the dashboard without the portal. |
+| `streamlit` *(default)* | The built-in Streamlit login screen in `core/auth.py` protects :8501. |
+| `react` | Legacy option from the old React portal; with the portal removed, keep this at `streamlit`. |
 
 ### Adding a user
 
@@ -400,12 +387,10 @@ the formulas and the storage strategy.
 
 | Problem | Fix |
 |---|---|
-| Login says *"Could not connect to server"* | Flask API not running — re-run `run_all.ps1` |
+| Login says *"Could not connect to server"* | MySQL not reachable — start MySQL (XAMPP) / check `.env` (or fall back to `energy.db`) |
 | Login returns 503 | MySQL not reachable — start MySQL (XAMPP) / check `.env` |
-| Portal page blank | `npm install` in `login_portal\frontend`, then re-run the launcher |
-| Dashboard blank inside the portal | Streamlit not up — check http://localhost:8501 |
-| **Streamlit never starts** (8501 never listens, MySQL/API/portal fine) | The project folder was moved after the venv was built: `.venv\Scripts\streamlit.exe` and `pip.exe` embed their creation path and fail silently. `run_all.ps1` now starts Streamlit as `python -m streamlit`; if you call a shim by hand, use `python.exe -m streamlit` / `python.exe -m pip` instead. To repair the shims for good, recreate the venv in place: `python -m venv .venv` then `python.exe -m pip install -r requirements.txt` |
-| Launcher says *"Vite dev server did not come up"* although the portal opens | Fixed in `run_all.ps1` — `Test-Port` now checks IPv4 **and** IPv6 (Vite binds `::1` here) |
+| Dashboard blank | Streamlit not up — check http://localhost:8501 |
+| **Streamlit never starts** (8501 never listens, MySQL fine) | The project folder was moved after the venv was built: `.venv\Scripts\streamlit.exe` and `pip.exe` embed their creation path and fail silently. `run_all.ps1` now starts Streamlit as `python -m streamlit`; if you call a shim by hand, use `python.exe -m streamlit` / `python.exe -m pip` instead. To repair the shims for good, recreate the venv in place: `python -m venv .venv` then `python.exe -m pip install -r requirements.txt` |
 | Port already in use | `.\stop_all.ps1` then re-run `run_all.ps1` |
 | Sidebar widgets cut off / can't scroll | Do **not** set `overflow-y: hidden` on the sidebar (see UNIT_GUIDE.md §4.1) |
 | Changes not visible | Press `C` in the browser (clear cache) or restart the launcher |

@@ -25,9 +25,9 @@ st.set_page_config(
 inject_css()
 
 # ---------------- Login gate ----------------
-# LOGIN_MODE = "react"     -> the React portal (:5173) logs the user in, this app
-#                             is embedded in it, so no second login is asked.
 # LOGIN_MODE = "streamlit" -> the built-in login screen below protects :8501.
+# LOGIN_MODE = "react"     -> legacy value from the old React portal, which has
+#                             been removed; nothing listens on :5173 anymore.
 if LOGIN_MODE == "streamlit" and not is_authenticated():
     render_login_page()
     st.stop()

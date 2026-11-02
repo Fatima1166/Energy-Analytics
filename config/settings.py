@@ -51,10 +51,10 @@ APP_SUBTITLE = "Enterprise Decision-Grade Modeling, Scenario Projections & Optim
 APP_ICON = "⚡"
 
 # "streamlit" -> the built-in Streamlit login gate protects the app directly
-#                 (design/animation copied 1:1 from the React login page).
-# "react"     -> skip the gate; the React portal on http://localhost:5173 is
-#                 the login and embeds this app (local dev only).
-# Override with env var or Streamlit Cloud Secrets LOGIN_MODE=react if needed.
+#                 (design/animation copied 1:1 from the old React login page).
+# "react"     -> legacy value from the React portal on :5173; the portal has
+#                 been removed, so keep this set to "streamlit".
+# Override with env var or Streamlit Cloud Secrets LOGIN_MODE if needed.
 LOGIN_MODE = str(_setting("LOGIN_MODE", "streamlit")).strip().lower()
 
 # ---------- Color palette ----------

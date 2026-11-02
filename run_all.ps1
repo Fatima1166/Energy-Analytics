@@ -4,7 +4,6 @@
         Streamlit       127.0.0.1:8501   <-- open this one (login page + dashboard)
         MySQL (XAMPP)   127.0.0.1:3306   (dev data backend; cloud uses energy.db)
 
-    The React portal (:5173) and Flask API (:5000) are no longer started --
     LOGIN_MODE=streamlit in .env makes app.py show the login itself.
 
     Usage:
@@ -19,16 +18,15 @@ $py     = Join-Path $root '.venv\Scripts\python.exe'
 # Streamlit is started through the interpreter (`python -m streamlit`) instead of
 # .venv\Scripts\streamlit.exe.  The console-script shims embed the path the venv
 # was CREATED at, so they fail silently once the project folder is moved or
-# renamed -- which is what happened here, and it left port 8501 dead while MySQL,
-# Flask and Vite all came up fine.
+# renamed -- which is what happened here, and it left port 8501 dead.
 $st     = $py
 $stArgs = @('-m', 'streamlit')
 $mysqld = 'D:\Fatima Programs\xampp\mysql\bin\mysqld.exe'
 $myini  = 'D:\Fatima Programs\xampp\mysql\bin\my.ini'
 
 function Test-Port([int]$Port) {
-    # Vite binds IPv6 (::1) on this machine and Flask/Streamlit bind IPv4, so a
-    # service counts as up when EITHER family answers.
+    # `localhost` can resolve to IPv6 (::1) first on this machine while
+    # Streamlit binds IPv4, so a service counts as up when EITHER family answers.
     foreach ($addr in @('127.0.0.1', '::1')) {
         try {
             $c = New-Object System.Net.Sockets.TcpClient

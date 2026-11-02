@@ -1059,26 +1059,7 @@ def render_login_page() -> None:
 
 
 def render_user_chip() -> bool:
-    """Sidebar identity block + Logout. Returns True when Logout was clicked."""
-    user = current_user() or {}
-    name = user.get("full_name") or user.get("username") or "User"
-    uname = user.get("username") or ""
-    role = (user.get("role") or "").upper()
-
-    st.sidebar.markdown(
-        f'<div style="display:flex;align-items:center;gap:10px;'
-        f'padding:6px 4px 8px;">'
-        f'<div style="width:34px;height:34px;border-radius:10px;flex-shrink:0;'
-        f'display:flex;align-items:center;justify-content:center;font-size:14px;'
-        f'background:linear-gradient(135deg,rgba(46,204,113,0.20),rgba(0,166,251,0.14));'
-        f'border:1px solid rgba(46,204,113,0.30);color:#2ECC71;">&#128100;</div>'
-        f'<div style="min-width:0;">'
-        f'<div style="color:#E2E8F0;font-size:12.5px;font-weight:600;'
-        f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{name}</div>'
-        f'<div style="color:#5C677D;font-size:10px;">{uname} &middot; {role}</div>'
-        f'</div></div>',
-        unsafe_allow_html=True,
-    )
+    """Sidebar Logout button. Returns True when Logout was clicked."""
     st.sidebar.markdown(
         "<style>"
         "section[data-testid='stSidebar'] .stButton > button {"
