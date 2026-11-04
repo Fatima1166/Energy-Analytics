@@ -4,30 +4,23 @@ Energy Parameter Relationships dashboard (Question 1).
 Presentation layer only -- pairwise correlations and the rolling-stability
 line are computed in core/parameter_relationships.py.
 
-Kept intentionally minimal: this dashboard answers the two halves of
-Question 1 -- how are the tracked energy / economic / emissions parameters
-related (the correlation visuals), and what are their predicted values under
-a what-if (the V9 forecast section, driven by the sidebar's What-if
-Assumptions).
+Kept intentionally minimal: this dashboard answers how the tracked energy /
+economic / emissions parameters relate to one another -- the correlation
+matrix, the ranked links, the distribution, and the pair / rolling views.
 """
 
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import streamlit as st
 
 from config.database import run_query
 from core.components import conclusion_card, section_title
 from core.icons import icon
 from core.parameter_relationships import (
-    DEFAULT_EFFICIENCY,
-    DEFAULT_GDP_GROWTH,
-    DEFAULT_POP_GROWTH,
     PARAMETERS,
     HISTORY_END,
     build_relationship_data,
-    forecast_path,
     pairwise_fit,
     rolling_correlation,
 )
@@ -50,7 +43,6 @@ from .charts import (
     visual3_rolling_corr,
     visual7_top_pairs,
     visual8_corr_distribution,
-    visual9_forecast_path,
 )
 from .config import DEFAULT_PERIOD, DEFAULT_ROLL_WINDOW
 
@@ -135,31 +127,6 @@ def sidebar() -> None:
     st.sidebar.caption(f"Minimum {MIN_SPAN} years -- both charts need joint data.")
     st.sidebar.divider()
 
-    # --- What-if assumptions (Question 1's second half) ---
-    # The engine grows each forecastable parameter by
-    #   autonomy + β_gdp·GDP growth + β_pop·population growth − efficiency,
-    # with autonomy back-solved from history, so the defaults leave the
-    # baseline untouched and every delta here is purely the assumption's doing.
-    st.sidebar.markdown('<div class="dsh-side-title">What-if Assumptions</div>',
-                        unsafe_allow_html=True)
-    wi_gdp = st.sidebar.slider("GDP growth", 0.0, 8.0, DEFAULT_GDP_GROWTH, 0.1,
-                               format="%.1f%%", key="q1_wi_gdp",
-                               help="Yearly GDP growth the what-if assumes.")
-    wi_pop = st.sidebar.slider("Population growth", 0.0, 4.0, DEFAULT_POP_GROWTH,
-                               0.1, format="%.1f%%", key="q1_wi_pop",
-                               help="Yearly population growth the what-if assumes.")
-    wi_eff = st.sidebar.slider("Efficiency gains", 0.0, 3.0, DEFAULT_EFFICIENCY,
-                               0.1, format="%.1f%%", key="q1_wi_eff",
-                               help="Yearly decoupling drag subtracted from every "
-                                    "parameter's growth.")
-    st.session_state[FILTERS_KEY]["whatif"] = {
-        "gdp_growth_pct": float(wi_gdp),
-        "pop_growth_pct": float(wi_pop),
-        "efficiency_pct": float(wi_eff),
-    }
-    st.sidebar.caption("Predictions run to 2035 · defaults keep the historical trend.")
-    st.sidebar.divider()
-
 
 # --- KPI Card UI ---
 
@@ -210,15 +177,14 @@ def _kpi_card(code: str, title: str, value: str, unit: str, rows: list,
 def render() -> None:
     """Renders the Parameter Relationships dashboard.
 
-    Focus: how are the tracked parameters related?  Everything on this page
-    is a different view of the same correlation signal -- the matrix, the
-    top pairs, the distribution, the pair explorer, and the rolling check.
+    Focus: how the tracked parameters relate. The page shows the correlation
+    view of history -- matrix, top pairs, distribution, pair explorer and the
+    rolling stability line -- and ends with a short conclusion.
     """
     st.markdown(_COMPACT_CSS, unsafe_allow_html=True)
 
     flt = st.session_state.get(FILTERS_KEY, {})
     period = flt.get("period", DEFAULT_PERIOD)
-    whatif = flt.get("whatif", {})
     span = int(period[1]) - int(period[0]) + 1
     # Keep the rolling window inside the selected period: half the span,
     # clamped to 4..default so the stability line always has enough points.
@@ -235,7 +201,6 @@ def render() -> None:
         co2_df=run_query(Q_CO2),
         period=period,
         roll_window=roll_window,
-        **whatif,
     )
 
     corr = data["corr"]
@@ -395,65 +360,6 @@ def render() -> None:
                                     roll_window)
         st.plotly_chart(fig3, use_container_width=True, config=_CHART_CONFIG)
 
-    # ---- Row 4: what-if predicted values (Question 1's second half) ----
-    fc = data["forecasts"]
-    if fc is not None and not fc.empty:
-        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
-
-        # Table gets its own full-width row so every parameter sits on a
-        # single horizontal row instead of stacking down a narrow column.
-        st.markdown(section_title("What-if Predicted Values",
-                                  "scenario", "Objective 3"),
-                    unsafe_allow_html=True)
-        st.caption("Each parameter grown by its own trend plus the sidebar's "
-                   "GDP / population / efficiency assumptions. A 0% what-if "
-                   "difference means the assumption left the trend untouched.")
-
-        def _mag(v: float) -> str:
-            """Compact magnitude ladder so one decimal always reads clean."""
-            a = abs(v)
-            for div, suf in ((1e9, "B"), (1e6, "M"), (1e3, "k")):
-                if a >= div:
-                    return f"{v / div:,.1f}{suf}"
-            return f"{v:,.1f}"
-
-        rows = []
-        for r in fc.to_dict("records"):
-            fu, ff = _unit_for(r["family"], r["unit"])
-            rows.append({
-                "Parameter": r["label"],
-                "Last measured": f"{_mag(r['last_value'] * ff)} {fu} · {int(r['last_year'])}",
-                "Trend to 2035": f"{_mag(r['baseline_value'] * ff)} {fu}",
-                "What-if 2035": f"{_mag(r['whatif_value'] * ff)} {fu}",
-                "What-if Δ": f"{r['delta_pct']:+.1f}%",
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-        st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
-
-        # ---- Prediction path (full width under the table) ----
-        pick_key = st.selectbox(
-            "Parameter to project",
-            fc["key"].tolist(),
-            index=fc["key"].tolist().index(data["target_key"])
-            if data["target_key"] in set(fc["key"]) else 0,
-            format_func=lambda k: PARAMETERS[k]["label"],
-            key="q1_fc_target")
-        row = fc[fc["key"] == pick_key].iloc[0]
-        path_df = forecast_path(data["frame"], pick_key, row,
-                                int(data["horizon"]))
-        pu, pf = _unit_for(PARAMETERS[pick_key]["family"],
-                           PARAMETERS[pick_key]["unit"])
-        st.markdown(section_title(
-            f"Prediction Path — {PARAMETERS[pick_key]['label']}",
-            "data", "Objective 3"), unsafe_allow_html=True)
-        st.caption("Blue is what was recorded; the dotted lines continue each "
-                   "scenario from the last measured year to 2035.")
-        fig9 = visual9_forecast_path(
-            path_df.assign(value=path_df["value"] * pf),
-            PARAMETERS[pick_key]["label"], pu, int(data["horizon"]))
-        st.plotly_chart(fig9, use_container_width=True, config=_CHART_CONFIG)
-
     # ---- Bottom line ----
     if strongest:
         _a, _b, _r = strongest
@@ -463,17 +369,10 @@ def render() -> None:
                  f"({_r:+.2f}) — {_how}.")
     else:
         line1 = "No two parameters share enough years together for a firm link."
-    n_links = len(pairs_df) if pairs_df is not None else 0
+    n_links = len(data["pairs"]) if data.get("pairs") is not None else 0
     line2 = (f"{strong_links} of {n_links} links tested move tight together "
              f"(0.7 or more); the rest run mostly on their own.")
-    if fc is not None and not fc.empty:
-        wi = data["inputs"]
-        _big = fc.loc[fc["delta_pct"].abs().idxmax()]
-        line3 = (f"Under the what-if ({wi['gdp_growth_pct']:.1f}% GDP, "
-                 f"{wi['pop_growth_pct']:.1f}% population, "
-                 f"{wi['efficiency_pct']:.1f}% efficiency), "
-                 f"{_big['label']} moves the most by 2035 "
-                 f"({_big['delta_pct']:+.1f}% against its own trend).")
-    else:
-        line3 = "No parameter has enough history for a what-if projection yet."
-    st.markdown(conclusion_card([line1, line2, line3]), unsafe_allow_html=True)
+    line3 = (f"Analysis window {y0}–{y1} · rolling window {roll_window} yr · "
+             f"{n_params} parameters compared.")
+    st.markdown(conclusion_card([line1, line2, line3]),
+                unsafe_allow_html=True)

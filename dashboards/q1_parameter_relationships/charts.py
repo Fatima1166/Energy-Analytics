@@ -8,7 +8,6 @@ V2  Pair scatter + OLS trend    -- two parameters, fitted line + R² note
 V3  Rolling correlation line    -- stability of one pair across sliding windows
 V7  Top relationship ranking      -- lollipop of the strongest |r| pairs
 V8  Correlation distribution      -- histogram of every pairwise r
-V9  What-if forecast path         -- history + baseline + what-if to the horizon
 
 Presentation-only ("dumb"): the core/parameter_relationships.py engine
 pre-computes every value; these functions only draw.
@@ -242,48 +241,4 @@ def visual8_corr_distribution(pairs: pd.DataFrame) -> go.Figure:
     _dark_theme(fig, height=430, y_title="Number of Parameter Pairs",
                 x_title="Pearson r (0.1-wide bins)")
     fig.update_layout(barmode="overlay", bargap=0.06)
-    return fig
-
-
-# ═══════════════ V9 -- what-if forecast path ═════════════════════════
-
-_SERIES_STYLE = {
-    "History":  dict(color="#00A6FB", width=2.6, dash="solid"),
-    "Baseline": dict(color="#8B95A7", width=2.2, dash="dot"),
-    "What-if":  dict(color="#10B981", width=2.4, dash="dash"),
-}
-
-
-def visual9_forecast_path(path: pd.DataFrame, label: str, unit: str,
-                          horizon: int) -> go.Figure:
-    """One parameter: recorded history, then the baseline trend and the
-    what-if path carried to the horizon year.  Presentation only -- the
-    engine's forecast_path() supplies every point."""
-    fig = go.Figure()
-    if path is None or path.empty or "series" not in path.columns:
-        return _empty(fig, "No forecast available for this parameter",
-                      height=400, y_title=f"{label} ({unit})", x_title="Year")
-
-    for series in ("History", "Baseline", "What-if"):
-        s = path[path["series"] == series]
-        if s.empty:
-            continue
-        style = _SERIES_STYLE[series]
-        fig.add_trace(go.Scatter(
-            x=s["year"], y=s["value"], mode="lines",
-            name=series, line=dict(width=style["width"], dash=style["dash"],
-                                   color=style["color"]),
-            hovertemplate=f"{series} %{{y:,.0f}} {unit} · %{{x}}<extra></extra>",
-        ))
-
-    hist_years = path.loc[path["series"] == "History", "year"]
-    if not hist_years.empty:
-        fig.add_vline(x=float(hist_years.max()) + 0.5,
-                      line=dict(color="rgba(255,255,255,0.30)", width=1.2,
-                                dash="dot"),
-                      annotation_text="forecast →", annotation_position="top right",
-                      annotation_font_size=9, annotation_font_color=_TICK)
-
-    _dark_theme(fig, height=400, y_title=f"{label} ({unit})",
-                x_title=f"Year (what-if carried to {horizon})")
     return fig

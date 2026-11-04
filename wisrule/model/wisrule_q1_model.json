@@ -1,0 +1,1740 @@
+{
+  "model": "wisrule_q1",
+  "version": "1.0",
+  "trained_at": "2026-11-04T12:29:31",
+  "algorithm": "WisRule - Khan & Shaheen (2022), Journal of Information Science; Algorithm 1, wise positive + negative rules gated on support / CPIR / interestingness / utility",
+  "wisdom_factors": {
+    "context": {
+      "variable": "gdp",
+      "normal_range": [
+        3.7601,
+        4.7601
+      ],
+      "adjustment": "PROCEDURE Supp_context, eq (8)-(11)",
+      "years_supplied": 27
+    },
+    "utility": {
+      "source": "magnitude share of the last reported level",
+      "items": 42,
+      "measure": "UPII, eq (15)"
+    },
+    "time": {
+      "n_intervals": 2,
+      "rule": "intersection of the per-interval rulesets"
+    },
+    "location": {
+      "n_locations": 1,
+      "note": "national aggregates only - single location"
+    }
+  },
+  "data": {
+    "source": "energy.db",
+    "history_years": [
+      1999,
+      2025
+    ],
+    "n_transactions": 26,
+    "transaction_years": [
+      2000,
+      2025
+    ],
+    "cv_first_target_year": 2010,
+    "cv_folds": 16,
+    "parameters": [
+      "gdp",
+      "population",
+      "demand",
+      "generation",
+      "consumption",
+      "capacity",
+      "elec_imports",
+      "td_losses",
+      "gas_production",
+      "gas_consumption",
+      "lng_imports",
+      "co2",
+      "primary_supply",
+      "final_consumption"
+    ],
+    "change_band_pct": 6.0
+  },
+  "params": {
+    "min_support": 0.25,
+    "min_cpir": 0.05,
+    "min_interest": 0.02,
+    "min_upii": 0.02,
+    "min_confidence": 0.72,
+    "min_utility": 0.1,
+    "n_time_intervals": 2,
+    "n_locations": 1,
+    "context_variable": "gdp",
+    "max_itemset_size": 3,
+    "max_consequent_size": 1,
+    "min_train_firings": 5,
+    "min_cv_firings": 2,
+    "train_rule_pool": 85,
+    "final_rule_cap": 40,
+    "rules_per_conclusion": 3
+  },
+  "metrics": {
+    "n_mined": 85,
+    "n_shortlisted": 35,
+    "n_rules": 35,
+    "n_positive": 26,
+    "n_negative": 9,
+    "cv_firings": 227,
+    "cv_correct": 121,
+    "cv_accuracy": 0.533,
+    "cv_baseline": 0.596,
+    "cv_skill": -0.063,
+    "n_confirmed": 2,
+    "n_weakened": 8,
+    "n_untested": 25,
+    "ensemble_predictions": 18,
+    "ensemble_correct": 16,
+    "ensemble_accuracy": 0.8889,
+    "ensemble_baseline": 0.6265,
+    "ensemble_skill": 0.2624,
+    "ensemble_predict_keys": [
+      "demand",
+      "generation",
+      "consumption",
+      "co2",
+      "primary_supply",
+      "final_consumption",
+      "gas_production",
+      "gas_consumption"
+    ],
+    "ensemble_min_weight": 3.5,
+    "ensemble_lift_cap": 5.0,
+    "rules_per_conclusion": 3
+  },
+  "rules": [
+    {
+      "antecedent": [
+        "Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "CO2=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.2711,
+      "cpir": 0.3697,
+      "interest": 0.0902,
+      "upii": 16.6308,
+      "utility": 16.6308,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5886,
+      "wisval_norm": 0.5886,
+      "wisval_target": 1.0,
+      "rule_id": "R015",
+      "rule_text": "Consumption=Stable \u2192 CO2=Stable",
+      "cv_folds_seen": 12,
+      "cv_firings": 7,
+      "cv_hits": 5,
+      "cv_confidence": 0.7143,
+      "cv_expected": 0.6898,
+      "cv_verdict": "confirmed"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "CO2=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.2711,
+      "cpir": 0.3697,
+      "interest": 0.0902,
+      "upii": 11.2786,
+      "utility": 11.2786,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.582,
+      "wisval_norm": 0.582,
+      "wisval_target": 1.0,
+      "rule_id": "R016",
+      "rule_text": "Consumption=Stable + Population=Stable \u2192 CO2=Stable",
+      "cv_folds_seen": 10,
+      "cv_firings": 6,
+      "cv_hits": 4,
+      "cv_confidence": 0.6667,
+      "cv_expected": 0.7075,
+      "cv_verdict": "confirmed"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Production=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 18,
+      "train_joint_count": 14,
+      "support": 0.5385,
+      "support_raw": 0.5385,
+      "confidence": 0.7778,
+      "lift": 1.0643,
+      "cpir": 0.1746,
+      "interest": 0.0325,
+      "upii": 2.7584,
+      "utility": 2.7584,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5769,
+      "wisval_norm": 0.5769,
+      "wisval_target": 1.0,
+      "rule_id": "R017",
+      "rule_text": "Capacity=Stable + Population=Stable \u2192 Gas Production=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 1,
+      "cv_hits": 1,
+      "cv_confidence": 1.0,
+      "cv_expected": 0.7826,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Production=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 18,
+      "train_joint_count": 14,
+      "support": 0.5385,
+      "support_raw": 0.5385,
+      "confidence": 0.7778,
+      "lift": 1.0643,
+      "cpir": 0.1746,
+      "interest": 0.0325,
+      "upii": 2.7546,
+      "utility": 2.7546,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5767,
+      "wisval_norm": 0.5767,
+      "wisval_target": 1.0,
+      "rule_id": "R018",
+      "rule_text": "Capacity=Stable \u2192 Gas Production=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Gas Production=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Capacity=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 19,
+      "train_joint_count": 14,
+      "support": 0.5385,
+      "support_raw": 0.5385,
+      "confidence": 0.7368,
+      "lift": 1.0643,
+      "cpir": 0.1447,
+      "interest": 0.0325,
+      "upii": 2.2803,
+      "utility": 2.2803,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5704,
+      "wisval_norm": 0.5704,
+      "wisval_target": 1.0,
+      "rule_id": "R019",
+      "rule_text": "Gas Production=Stable \u2192 Capacity=Stable",
+      "cv_folds_seen": 3,
+      "cv_firings": 2,
+      "cv_hits": 1,
+      "cv_confidence": 0.5,
+      "cv_expected": 0.7115,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Gas Production=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Capacity=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 19,
+      "train_joint_count": 14,
+      "support": 0.5385,
+      "support_raw": 0.5385,
+      "confidence": 0.7368,
+      "lift": 1.0643,
+      "cpir": 0.1447,
+      "interest": 0.0325,
+      "upii": 2.2787,
+      "utility": 2.2787,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5703,
+      "wisval_norm": 0.5703,
+      "wisval_target": 1.0,
+      "rule_id": "R020",
+      "rule_text": "Gas Production=Stable + Population=Stable \u2192 Capacity=Stable",
+      "cv_folds_seen": 3,
+      "cv_firings": 2,
+      "cv_hits": 1,
+      "cv_confidence": 0.5,
+      "cv_expected": 0.7115,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Demand=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "CO2=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 13,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.7692,
+      "lift": 1.3333,
+      "cpir": 0.4545,
+      "interest": 0.0962,
+      "upii": 11.9606,
+      "utility": 11.9606,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5658,
+      "wisval_norm": 0.5658,
+      "wisval_target": 1.0,
+      "rule_id": "R022",
+      "rule_text": "Consumption=Stable + Demand=Stable \u2192 CO2=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Gas Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Capacity=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 12,
+      "support": 0.4615,
+      "support_raw": 0.4615,
+      "confidence": 0.8,
+      "lift": 1.1556,
+      "cpir": 0.35,
+      "interest": 0.0621,
+      "upii": 2.5111,
+      "utility": 2.5111,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5314,
+      "wisval_norm": 0.5314,
+      "wisval_target": 1.0,
+      "rule_id": "R025",
+      "rule_text": "Gas Consumption=Stable \u2192 Capacity=Stable",
+      "cv_folds_seen": 3,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Gas Consumption=Stable",
+        "Gas Production=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 14,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.7143,
+      "lift": 1.2381,
+      "cpir": 0.3247,
+      "interest": 0.074,
+      "upii": 1.6307,
+      "utility": 1.6307,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5212,
+      "wisval_norm": 0.5212,
+      "wisval_target": 1.0,
+      "rule_id": "R027",
+      "rule_text": "Gas Consumption=Stable + Gas Production=Stable \u2192 Consumption=Stable",
+      "cv_folds_seen": 2,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 18,
+      "train_joint_count": 12,
+      "support": 0.4615,
+      "support_raw": 0.4615,
+      "confidence": 0.6667,
+      "lift": 1.1556,
+      "cpir": 0.2121,
+      "interest": 0.0621,
+      "upii": 1.4929,
+      "utility": 1.4929,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5205,
+      "wisval_norm": 0.5205,
+      "wisval_target": 1.0,
+      "rule_id": "R028",
+      "rule_text": "Capacity=Stable + Population=Stable \u2192 Gas Consumption=Stable",
+      "cv_folds_seen": 8,
+      "cv_firings": 3,
+      "cv_hits": 1,
+      "cv_confidence": 0.3333,
+      "cv_expected": 0.6713,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 18,
+      "train_joint_count": 12,
+      "support": 0.4615,
+      "support_raw": 0.4615,
+      "confidence": 0.6667,
+      "lift": 1.1556,
+      "cpir": 0.2121,
+      "interest": 0.0621,
+      "upii": 1.4908,
+      "utility": 1.4908,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5204,
+      "wisval_norm": 0.5204,
+      "wisval_target": 1.0,
+      "rule_id": "R029",
+      "rule_text": "Capacity=Stable \u2192 Gas Consumption=Stable",
+      "cv_folds_seen": 5,
+      "cv_firings": 3,
+      "cv_hits": 1,
+      "cv_confidence": 0.3333,
+      "cv_expected": 0.6713,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "T&D Losses=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Production=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 10,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.9,
+      "lift": 1.2316,
+      "cpir": 0.6286,
+      "interest": 0.0651,
+      "upii": 3.2681,
+      "utility": 3.2681,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5165,
+      "wisval_norm": 0.5165,
+      "wisval_target": 1.0,
+      "rule_id": "R030",
+      "rule_text": "Capacity=Stable + T&D Losses=Stable \u2192 Gas Production=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "GDP=High"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 15,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.6,
+      "lift": 1.3,
+      "cpir": 0.2571,
+      "interest": 0.0799,
+      "upii": 1.0585,
+      "utility": 1.0585,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 1.0104,
+      "wisval_norm": 0.5052,
+      "wisval_target": 2.0,
+      "rule_id": "R001",
+      "rule_text": "Consumption=Stable + Population=Stable \u2192 \u00acGDP=High",
+      "cv_folds_seen": 4,
+      "cv_firings": 3,
+      "cv_hits": 1,
+      "cv_confidence": 0.3333,
+      "cv_expected": 0.4776,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "GDP=High"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 15,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.6,
+      "lift": 1.3,
+      "cpir": 0.2571,
+      "interest": 0.0799,
+      "upii": 1.0541,
+      "utility": 1.0541,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 1.0099,
+      "wisval_norm": 0.505,
+      "wisval_target": 2.0,
+      "rule_id": "R002",
+      "rule_text": "Consumption=Stable \u2192 \u00acGDP=High",
+      "cv_folds_seen": 4,
+      "cv_firings": 3,
+      "cv_hits": 1,
+      "cv_confidence": 0.3333,
+      "cv_expected": 0.4776,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Gas Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.2711,
+      "cpir": 0.3697,
+      "interest": 0.0902,
+      "upii": 1.6747,
+      "utility": 1.6747,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5042,
+      "wisval_norm": 0.5042,
+      "wisval_target": 1.0,
+      "rule_id": "R031",
+      "rule_text": "Gas Consumption=Stable \u2192 Consumption=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Gas Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.2711,
+      "cpir": 0.3697,
+      "interest": 0.0902,
+      "upii": 1.6713,
+      "utility": 1.6713,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5041,
+      "wisval_norm": 0.5041,
+      "wisval_target": 1.0,
+      "rule_id": "R032",
+      "rule_text": "Gas Consumption=Stable + Population=Stable \u2192 Consumption=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Gas Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.2711,
+      "cpir": 0.3697,
+      "interest": 0.0902,
+      "upii": 1.6617,
+      "utility": 1.6617,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.5037,
+      "wisval_norm": 0.5037,
+      "wisval_target": 1.0,
+      "rule_id": "R033",
+      "rule_text": "Consumption=Stable + Population=Stable \u2192 Gas Consumption=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "GDP=High"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "Consumption=Stable"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 14,
+      "train_joint_count": 8,
+      "support": 0.3077,
+      "support_raw": 0.3077,
+      "confidence": 0.5714,
+      "lift": 1.3506,
+      "cpir": 0.2571,
+      "interest": 0.0799,
+      "upii": 0.9492,
+      "utility": 0.9492,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 1.0013,
+      "wisval_norm": 0.5006,
+      "wisval_target": 2.0,
+      "rule_id": "R003",
+      "rule_text": "GDP=High \u2192 \u00acConsumption=Stable",
+      "cv_folds_seen": 4,
+      "cv_firings": 2,
+      "cv_hits": 0,
+      "cv_confidence": 0.0,
+      "cv_expected": 0.4356,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "GDP=High",
+        "Population=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "Consumption=Stable"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 14,
+      "train_joint_count": 8,
+      "support": 0.3077,
+      "support_raw": 0.3077,
+      "confidence": 0.5714,
+      "lift": 1.3506,
+      "cpir": 0.2571,
+      "interest": 0.0799,
+      "upii": 0.9472,
+      "utility": 0.9472,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 1.001,
+      "wisval_norm": 0.5005,
+      "wisval_target": 2.0,
+      "rule_id": "R004",
+      "rule_text": "GDP=High + Population=Stable \u2192 \u00acConsumption=Stable",
+      "cv_folds_seen": 4,
+      "cv_firings": 2,
+      "cv_hits": 0,
+      "cv_confidence": 0.0,
+      "cv_expected": 0.4356,
+      "cv_verdict": "weakened"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "T&D Losses=Stable"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 15,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.6,
+      "lift": 1.1143,
+      "cpir": 0.1333,
+      "interest": 0.0355,
+      "upii": 1.2357,
+      "utility": 1.2357,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.9974,
+      "wisval_norm": 0.4987,
+      "wisval_target": 2.0,
+      "rule_id": "R005",
+      "rule_text": "Consumption=Stable + Population=Stable \u2192 \u00acT&D Losses=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "T&D Losses=Stable"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 15,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.6,
+      "lift": 1.1143,
+      "cpir": 0.1333,
+      "interest": 0.0355,
+      "upii": 1.231,
+      "utility": 1.231,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.9968,
+      "wisval_norm": 0.4984,
+      "wisval_target": 2.0,
+      "rule_id": "R006",
+      "rule_text": "Consumption=Stable \u2192 \u00acT&D Losses=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Gas Production=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Generation=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 12,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.8333,
+      "lift": 1.3542,
+      "cpir": 0.5667,
+      "interest": 0.1006,
+      "upii": 2.1116,
+      "utility": 2.1116,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4911,
+      "wisval_norm": 0.4911,
+      "wisval_target": 1.0,
+      "rule_id": "R037",
+      "rule_text": "Consumption=Stable + Gas Production=Stable \u2192 Generation=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "Gas Production=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "T&D Losses=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 14,
+      "train_joint_count": 9,
+      "support": 0.3462,
+      "support_raw": 0.3462,
+      "confidence": 0.6429,
+      "lift": 1.3929,
+      "cpir": 0.3367,
+      "interest": 0.0976,
+      "upii": 1.1438,
+      "utility": 1.1438,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4908,
+      "wisval_norm": 0.4908,
+      "wisval_target": 1.0,
+      "rule_id": "R038",
+      "rule_text": "Capacity=Stable + Gas Production=Stable \u2192 T&D Losses=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Consumption=Stable",
+        "Gas Production=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Demand=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 12,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.8333,
+      "lift": 1.4444,
+      "cpir": 0.6061,
+      "interest": 0.1183,
+      "upii": 1.9232,
+      "utility": 1.9232,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4782,
+      "wisval_norm": 0.4782,
+      "wisval_target": 1.0,
+      "rule_id": "R041",
+      "rule_text": "Consumption=Stable + Gas Production=Stable \u2192 Demand=Stable",
+      "cv_folds_seen": 1,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Generation=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 11,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.9091,
+      "lift": 1.4773,
+      "cpir": 0.7636,
+      "interest": 0.1243,
+      "upii": 2.3126,
+      "utility": 2.3126,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.459,
+      "wisval_norm": 0.459,
+      "wisval_target": 1.0,
+      "rule_id": "R048",
+      "rule_text": "Capacity=Stable + Consumption=Stable \u2192 Generation=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "CO2=Stable",
+        "Population=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "Consumption=High"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 15,
+      "train_joint_count": 11,
+      "support": 0.4231,
+      "support_raw": 0.4231,
+      "confidence": 0.7333,
+      "lift": 1.1216,
+      "cpir": 0.2296,
+      "interest": 0.0459,
+      "upii": 1.3961,
+      "utility": 1.3961,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.9145,
+      "wisval_norm": 0.4573,
+      "wisval_target": 2.0,
+      "rule_id": "R007",
+      "rule_text": "CO2=Stable + Population=Stable \u2192 \u00acConsumption=High",
+      "cv_folds_seen": 2,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "CO2=Stable",
+        "Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Generation=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 11,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.9091,
+      "lift": 1.4773,
+      "cpir": 0.7636,
+      "interest": 0.1243,
+      "upii": 1.596,
+      "utility": 1.596,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4572,
+      "wisval_norm": 0.4572,
+      "wisval_target": 1.0,
+      "rule_id": "R050",
+      "rule_text": "CO2=Stable + Consumption=Stable \u2192 Generation=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Generation=Stable",
+        "Population=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "Consumption=High"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 16,
+      "train_joint_count": 13,
+      "support": 0.5,
+      "support_raw": 0.5,
+      "confidence": 0.8125,
+      "lift": 1.2426,
+      "cpir": 0.4583,
+      "interest": 0.0976,
+      "upii": 2.2612,
+      "utility": 2.2612,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.9136,
+      "wisval_norm": 0.4568,
+      "wisval_target": 2.0,
+      "rule_id": "R008",
+      "rule_text": "Generation=Stable + Population=Stable \u2192 \u00acConsumption=High",
+      "cv_folds_seen": 2,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Generation=Stable"
+      ],
+      "negation": "\u00ac",
+      "consequent": [
+        "Consumption=High"
+      ],
+      "rule_type": "Negative",
+      "train_antecedent_count": 16,
+      "train_joint_count": 13,
+      "support": 0.5,
+      "support_raw": 0.5,
+      "confidence": 0.8125,
+      "lift": 1.2426,
+      "cpir": 0.4583,
+      "interest": 0.0976,
+      "upii": 2.255,
+      "utility": 2.255,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.9135,
+      "wisval_norm": 0.4568,
+      "wisval_target": 2.0,
+      "rule_id": "R009",
+      "rule_text": "Generation=Stable \u2192 \u00acConsumption=High",
+      "cv_folds_seen": 2,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Capacity=Stable",
+        "Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Demand=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 11,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.9091,
+      "lift": 1.5758,
+      "cpir": 0.7851,
+      "interest": 0.1405,
+      "upii": 2.1063,
+      "utility": 2.1063,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4519,
+      "wisval_norm": 0.4519,
+      "wisval_target": 1.0,
+      "rule_id": "R054",
+      "rule_text": "Capacity=Stable + Consumption=Stable \u2192 Demand=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "CO2=Stable",
+        "Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Demand=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 11,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.9091,
+      "lift": 1.5758,
+      "cpir": 0.7851,
+      "interest": 0.1405,
+      "upii": 1.451,
+      "utility": 1.451,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4515,
+      "wisval_norm": 0.4515,
+      "wisval_target": 1.0,
+      "rule_id": "R058",
+      "rule_text": "CO2=Stable + Consumption=Stable \u2192 Demand=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Population=Stable",
+        "Primary Supply=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Final Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 16,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.625,
+      "lift": 1.625,
+      "cpir": 0.3906,
+      "interest": 0.1479,
+      "upii": 0.7613,
+      "utility": 0.7613,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.45,
+      "wisval_norm": 0.45,
+      "wisval_target": 1.0,
+      "rule_id": "R061",
+      "rule_text": "Population=Stable + Primary Supply=Stable \u2192 Final Consumption=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Primary Supply=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Final Consumption=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 16,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 0.625,
+      "lift": 1.625,
+      "cpir": 0.3906,
+      "interest": 0.1479,
+      "upii": 0.5182,
+      "utility": 0.5182,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4285,
+      "wisval_norm": 0.4285,
+      "wisval_target": 1.0,
+      "rule_id": "R072",
+      "rule_text": "Primary Supply=Stable \u2192 Final Consumption=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Final Consumption=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Primary Supply=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 10,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 1.0,
+      "lift": 1.625,
+      "cpir": 1.0,
+      "interest": 0.1479,
+      "upii": 2.6887,
+      "utility": 2.6887,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.4239,
+      "wisval_norm": 0.4239,
+      "wisval_target": 1.0,
+      "rule_id": "R075",
+      "rule_text": "Final Consumption=Stable \u2192 Primary Supply=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    },
+    {
+      "antecedent": [
+        "Final Consumption=Stable",
+        "Population=Stable"
+      ],
+      "negation": "",
+      "consequent": [
+        "Primary Supply=Stable"
+      ],
+      "rule_type": "Positive",
+      "train_antecedent_count": 10,
+      "train_joint_count": 10,
+      "support": 0.3846,
+      "support_raw": 0.3846,
+      "confidence": 1.0,
+      "lift": 1.625,
+      "cpir": 1.0,
+      "interest": 0.1479,
+      "upii": 3.428,
+      "utility": 3.428,
+      "ctx_adjust_pct": 0.0,
+      "ctx_state": "normal",
+      "wisval": 0.42,
+      "wisval_norm": 0.42,
+      "wisval_target": 1.0,
+      "rule_id": "R076",
+      "rule_text": "Final Consumption=Stable + Population=Stable \u2192 Primary Supply=Stable",
+      "cv_folds_seen": 0,
+      "cv_firings": 0,
+      "cv_hits": 0,
+      "cv_confidence": null,
+      "cv_expected": null,
+      "cv_verdict": "untested"
+    }
+  ],
+  "ensemble_details": [
+    {
+      "year": 2011,
+      "parameter": "consumption",
+      "label": "Consumption",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2012,
+      "parameter": "co2",
+      "label": "CO2",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2014,
+      "parameter": "demand",
+      "label": "Demand",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2014,
+      "parameter": "generation",
+      "label": "Generation",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2014,
+      "parameter": "co2",
+      "label": "CO2",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2015,
+      "parameter": "demand",
+      "label": "Demand",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2015,
+      "parameter": "generation",
+      "label": "Generation",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2016,
+      "parameter": "gas_consumption",
+      "label": "Gas Consumption",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2017,
+      "parameter": "gas_consumption",
+      "label": "Gas Consumption",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2018,
+      "parameter": "generation",
+      "label": "Generation",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2018,
+      "parameter": "consumption",
+      "label": "Consumption",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2018,
+      "parameter": "co2",
+      "label": "CO2",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2019,
+      "parameter": "primary_supply",
+      "label": "Primary Supply",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2021,
+      "parameter": "gas_production",
+      "label": "Gas Production",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2023,
+      "parameter": "co2",
+      "label": "CO2",
+      "predicted": "Stable",
+      "actual": "Low"
+    },
+    {
+      "year": 2023,
+      "parameter": "gas_production",
+      "label": "Gas Production",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2024,
+      "parameter": "co2",
+      "label": "CO2",
+      "predicted": "Stable",
+      "actual": "Stable"
+    },
+    {
+      "year": 2024,
+      "parameter": "gas_production",
+      "label": "Gas Production",
+      "predicted": "Stable",
+      "actual": "Low"
+    }
+  ],
+  "growth_rates": {
+    "gdp": {
+      "Stable": {
+        "median_pct": 4.089,
+        "lo_pct": 2.764,
+        "hi_pct": 4.939,
+        "n_years": 8
+      },
+      "High": {
+        "median_pct": 10.471,
+        "lo_pct": 9.799,
+        "hi_pct": 14.506,
+        "n_years": 14
+      },
+      "Low": {
+        "median_pct": -8.621,
+        "lo_pct": -9.965,
+        "hi_pct": -7.11,
+        "n_years": 4
+      }
+    },
+    "population": {
+      "Stable": {
+        "median_pct": 1.808,
+        "lo_pct": 1.564,
+        "hi_pct": 2.597,
+        "n_years": 26
+      }
+    },
+    "generation": {
+      "Stable": {
+        "median_pct": 2.93,
+        "lo_pct": -1.073,
+        "hi_pct": 4.185,
+        "n_years": 16
+      },
+      "High": {
+        "median_pct": 7.126,
+        "lo_pct": 6.755,
+        "hi_pct": 8.267,
+        "n_years": 8
+      },
+      "Low": {
+        "median_pct": -10.072,
+        "lo_pct": -10.072,
+        "hi_pct": -10.072,
+        "n_years": 1
+      }
+    },
+    "consumption": {
+      "High": {
+        "median_pct": 8.621,
+        "lo_pct": 7.557,
+        "hi_pct": 10.232,
+        "n_years": 9
+      },
+      "Stable": {
+        "median_pct": 2.771,
+        "lo_pct": -0.201,
+        "hi_pct": 3.946,
+        "n_years": 15
+      },
+      "Low": {
+        "median_pct": -8.83,
+        "lo_pct": -8.83,
+        "hi_pct": -8.83,
+        "n_years": 1
+      }
+    },
+    "capacity": {
+      "Stable": {
+        "median_pct": 0.968,
+        "lo_pct": 0.016,
+        "hi_pct": 2.693,
+        "n_years": 18
+      },
+      "High": {
+        "median_pct": 10.216,
+        "lo_pct": 8.615,
+        "hi_pct": 11.768,
+        "n_years": 7
+      }
+    },
+    "gas_production": {
+      "High": {
+        "median_pct": 9.638,
+        "lo_pct": 7.333,
+        "hi_pct": 14.161,
+        "n_years": 4
+      },
+      "Stable": {
+        "median_pct": -0.759,
+        "lo_pct": -2.349,
+        "hi_pct": 1.297,
+        "n_years": 19
+      },
+      "Low": {
+        "median_pct": -7.936,
+        "lo_pct": -8.141,
+        "hi_pct": -7.73,
+        "n_years": 2
+      }
+    },
+    "gas_consumption": {
+      "High": {
+        "median_pct": 8.981,
+        "lo_pct": 7.485,
+        "hi_pct": 10.417,
+        "n_years": 6
+      },
+      "Stable": {
+        "median_pct": 0.361,
+        "lo_pct": -0.944,
+        "hi_pct": 4.993,
+        "n_years": 15
+      },
+      "Low": {
+        "median_pct": -8.479,
+        "lo_pct": -8.771,
+        "hi_pct": -7.813,
+        "n_years": 4
+      }
+    },
+    "co2": {
+      "Stable": {
+        "median_pct": 0.714,
+        "lo_pct": -1.075,
+        "hi_pct": 2.051,
+        "n_years": 15
+      },
+      "High": {
+        "median_pct": 12.935,
+        "lo_pct": 8.864,
+        "hi_pct": 16.475,
+        "n_years": 7
+      },
+      "Low": {
+        "median_pct": -11.845,
+        "lo_pct": -12.406,
+        "hi_pct": -9.037,
+        "n_years": 3
+      }
+    },
+    "primary_supply": {
+      "Stable": {
+        "median_pct": 2.553,
+        "lo_pct": 0.151,
+        "hi_pct": 4.413,
+        "n_years": 16
+      },
+      "High": {
+        "median_pct": 8.249,
+        "lo_pct": 7.94,
+        "hi_pct": 8.659,
+        "n_years": 4
+      }
+    },
+    "demand": {
+      "High": {
+        "median_pct": 8.436,
+        "lo_pct": 7.89,
+        "hi_pct": 9.769,
+        "n_years": 10
+      },
+      "Stable": {
+        "median_pct": 2.896,
+        "lo_pct": -1.343,
+        "hi_pct": 4.566,
+        "n_years": 15
+      }
+    },
+    "td_losses": {
+      "Stable": {
+        "median_pct": 2.271,
+        "lo_pct": 0.057,
+        "hi_pct": 3.438,
+        "n_years": 12
+      },
+      "High": {
+        "median_pct": 18.249,
+        "lo_pct": 7.629,
+        "hi_pct": 30.749,
+        "n_years": 4
+      },
+      "Low": {
+        "median_pct": -14.467,
+        "lo_pct": -19.212,
+        "hi_pct": -12.082,
+        "n_years": 5
+      }
+    },
+    "final_consumption": {
+      "High": {
+        "median_pct": 9.717,
+        "lo_pct": 8.786,
+        "hi_pct": 10.297,
+        "n_years": 7
+      },
+      "Stable": {
+        "median_pct": 0.303,
+        "lo_pct": 0.0,
+        "hi_pct": 3.612,
+        "n_years": 10
+      }
+    },
+    "elec_imports": {
+      "High": {
+        "median_pct": 15.222,
+        "lo_pct": 11.223,
+        "hi_pct": 23.666,
+        "n_years": 12
+      },
+      "Stable": {
+        "median_pct": 3.862,
+        "lo_pct": 2.196,
+        "hi_pct": 5.247,
+        "n_years": 6
+      },
+      "Low": {
+        "median_pct": -12.41,
+        "lo_pct": -16.76,
+        "hi_pct": -9.679,
+        "n_years": 3
+      }
+    },
+    "lng_imports": {
+      "High": {
+        "median_pct": 43.696,
+        "lo_pct": 19.027,
+        "hi_pct": 81.041,
+        "n_years": 6
+      },
+      "Low": {
+        "median_pct": -10.944,
+        "lo_pct": -13.092,
+        "hi_pct": -8.796,
+        "n_years": 2
+      },
+      "Stable": {
+        "median_pct": -3.766,
+        "lo_pct": -4.009,
+        "hi_pct": -3.523,
+        "n_years": 2
+      }
+    }
+  },
+  "last_actuals": {
+    "gdp": {
+      "value": 408.16,
+      "year": 2025
+    },
+    "population": {
+      "value": 255.2196,
+      "year": 2025
+    },
+    "demand": {
+      "value": 195510.0,
+      "year": 2025
+    },
+    "generation": {
+      "value": 140875.0,
+      "year": 2024
+    },
+    "consumption": {
+      "value": 113140.0,
+      "year": 2024
+    },
+    "capacity": {
+      "value": 45380.0,
+      "year": 2024
+    },
+    "elec_imports": {
+      "value": 454.0,
+      "year": 2024
+    },
+    "td_losses": {
+      "value": 21148.51,
+      "year": 2023
+    },
+    "gas_production": {
+      "value": 1054.812,
+      "year": 2024
+    },
+    "gas_consumption": {
+      "value": 1128.945,
+      "year": 2024
+    },
+    "lng_imports": {
+      "value": 366.2,
+      "year": 2024
+    },
+    "co2": {
+      "value": 179800380.0,
+      "year": 2024
+    },
+    "primary_supply": {
+      "value": 83810000.0,
+      "year": 2019
+    },
+    "final_consumption": {
+      "value": 54990000.0,
+      "year": 2019
+    }
+  },
+  "item_labels": {
+    "gdp": "GDP",
+    "population": "Population",
+    "demand": "Demand",
+    "generation": "Generation",
+    "consumption": "Consumption",
+    "capacity": "Capacity",
+    "elec_imports": "Elec Imports",
+    "td_losses": "T&D Losses",
+    "gas_production": "Gas Production",
+    "gas_consumption": "Gas Consumption",
+    "lng_imports": "LNG Imports",
+    "co2": "CO2",
+    "primary_supply": "Primary Supply",
+    "final_consumption": "Final Consumption"
+  }
+}
