@@ -40,7 +40,6 @@ from .charts import (
     visual2_import_dependence,
     visual3_gas_balance,
     visual4_gap_paths,
-    visual5_bottleneck_slope,
 )
 
 HORIZON = 2035
@@ -328,20 +327,6 @@ def render():
         st.plotly_chart(
             visual4_gap_paths(data["timeline"], year_range,
                               _GAP_LABELS, _GAP_COLORS),
-            use_container_width=True, config={"displayModeBar": False})
-
-    # --- Visual 5: better or worse, first reported year to last reported ---
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-    r3c1, _ = st.columns([1.6, 1])
-    with r3c1:
-        st.markdown(
-            section_title("Visual 5 – Are the bottlenecks getting better or worse?",
-                          "warning", badge="first reported → last reported"),
-            unsafe_allow_html=True)
-        st.caption("One line per metric. Green means it moved the right way over "
-                   "the chosen years; red means it moved the wrong way.")
-        st.plotly_chart(
-            visual5_bottleneck_slope(chart_series, year_range),
             use_container_width=True, config={"displayModeBar": False})
 
     # ---- Bottom line ----

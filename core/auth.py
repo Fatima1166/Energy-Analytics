@@ -9,14 +9,28 @@ bcrypt check against MySQL `dim_users`:
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
+import os
+import time
 from pathlib import Path
 from typing import Optional
 
 import bcrypt
 import streamlit as st
+import streamlit.components.v1 as components
 
 SESSION_USER = "auth_user"
 ERROR_KEY = "login_error"
+
+# Reload-proof session cookie.  Home's pillar cards are plain <a href="?nav=..">
+# links, so clicking one is a full browser reload -- a brand-new Streamlit
+# session that has lost st.session_state.  A signed cookie lets try_auto_login()
+# rebuild the session on load, so an already-logged-in user lands straight on
+# the question page instead of back at the login screen.
+AUTH_COOKIE = "auth_token"
+_AUTH_SECRET = os.environ.get("AUTH_SECRET", "energy-dashboard-local-secret")
+_AUTH_TTL_SECONDS = 7 * 24 * 3600   # 7 days
 
 _HERO_IMAGE = Path(__file__).resolve().parents[1] / "assets" / "login_hero.jpg"
 
@@ -158,7 +172,112 @@ def login(user: dict) -> None:
 
 
 def logout() -> None:
+    user = current_user()
+    if user:
+        # server-side revocation: cookies issued before this instant are dead
+        _revoked_before()[str(user["username"])] = int(time.time())
     st.session_state.pop(SESSION_USER, None)
+    st.session_state.pop("_auth_cookie_val", None)
+    _push_cookie("", max_age=0)
+
+
+# ---------------------------------------------------------------------------
+# Reload-proof session cookie (signed, 7-day)
+# ---------------------------------------------------------------------------
+@st.cache_resource
+def _revoked_before() -> dict:
+    """username -> epoch seconds; cookies issued earlier are rejected."""
+    return {}
+
+
+def _sign(username: str, issued: int) -> str:
+    msg = f"{username}|{issued}".encode("utf-8")
+    return hmac.new(_AUTH_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+
+
+def _make_cookie_value(username: str) -> str:
+    issued = int(time.time())
+    return f"{username}.{issued}.{_sign(username, issued)}"
+
+
+def _parse_cookie_value(value: str):
+    """Return (username, issued_epoch) when the signature checks out."""
+    try:
+        username, issued_s, sig = value.rsplit(".", 2)
+        issued = int(issued_s)
+    except (ValueError, TypeError):
+        return None, 0
+    if not username or not hmac.compare_digest(sig, _sign(username, issued)):
+        return None, 0
+    return username, issued
+
+
+def _push_cookie(value: str, max_age: int) -> None:
+    """Set (or clear, with max_age=0) the cookie from a zero-height component.
+    The iframe is same-origin, so both the frame and the app page get the
+    cookie; the browser sends it on the next full page load."""
+    safe = "".join(ch for ch in value if ch not in '"\\;\'')
+    payload = f"{AUTH_COOKIE}={safe}; path=/; max-age={max_age}; samesite=lax"
+    html = (
+        "<script>(function(){var c='" + payload + "';"
+        "try{document.cookie=c}catch(e){}"
+        "try{parent.document.cookie=c}catch(e){}})();</script>"
+    )
+    components.html(html, height=0, width=0)
+
+
+def try_auto_login() -> bool:
+    """Rebuild the session from a valid cookie on page load. Silent on any
+    problem -- a bad cookie just means the login screen shows, as before."""
+    if is_authenticated():
+        return True
+    try:
+        raw = st.context.cookies.get(AUTH_COOKIE)
+    except Exception:                                     # noqa: BLE001
+        return False
+    if not raw:
+        return False
+    username, issued = _parse_cookie_value(str(raw))
+    if not username:
+        return False
+    if time.time() - issued > _AUTH_TTL_SECONDS:
+        return False
+    if int(_revoked_before().get(username, 0)) > issued:
+        return False
+    try:
+        row = _fetch_user(username)
+    except Exception:                                     # noqa: BLE001
+        return False
+    if not row:
+        return False
+    st.session_state[SESSION_USER] = {
+        "user_id": int(row["user_id"]),
+        "username": row["username"],
+        "full_name": row.get("full_name") or row["username"],
+        "role": row.get("role") or "user",
+    }
+    st.session_state["_auth_cookie_val"] = str(raw)
+    return True
+
+
+def maintain_session_cookie() -> None:
+    """Rendered once per authenticated run: pushes the signed cookie only when
+    the browser does not already carry this session's value (e.g. right after
+    a manual sign-in).  Keeps layout untouched in the steady state."""
+    user = current_user()
+    if user is None:
+        return
+    expected = st.session_state.get("_auth_cookie_val")
+    if not expected:
+        expected = _make_cookie_value(str(user["username"]))
+        st.session_state["_auth_cookie_val"] = expected
+    try:
+        have = st.context.cookies.get(AUTH_COOKIE)
+    except Exception:                                     # noqa: BLE001
+        have = None
+    if str(have or "") == expected:
+        return
+    _push_cookie(expected, max_age=_AUTH_TTL_SECONDS)
 
 
 # ---------------------------------------------------------------------------

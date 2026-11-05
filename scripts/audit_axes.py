@@ -63,9 +63,8 @@ d5 = build_supply_dashboard_data(primary_df, re_df, econ_df, gen_df)
 q4_figs = {
     'Q4 V1 (Demand so far)': q4_charts.visual1_history_trends(d4['history'], ['total_final', 'electricity_final', 'gas_final', 'elec_grid'], (1999, 2024)),
     'Q4 V2 (Scenario Paths)': q4_charts.visual2_scenario_fans(d4['bands'], d4['history'], ['total_final', 'electricity_final', 'gas_final', 'elec_grid'], ['Low', 'Base', 'High']),
-    'Q4 V3 (What Moves Demand)': q4_charts.visual3_drivers(d4['history'], d4['models'].get('electricity_final', {}), 'electricity_final', (1999, 2024)),
-    'Q4 V4 (Sector Mix)': q4_charts.visual4_sector_mix(d4['sectors'], 2035),
-    'Q4 V5 (Trust In The Forecast)': q4_charts.visual5_reliability(d4['backtest']['metrics'], 2020, 2024),
+    'Q4 V3 (Sector Mix)': q4_charts.visual3_sector_mix(d4['sectors'], 2035),
+    'Q4 V4 (Trust In The Forecast)': q4_charts.visual4_reliability(d4['backtest']['metrics'], 2020, 2024),
 }
 
 print('=== AUDIT OF Q4 CHARTS ===')

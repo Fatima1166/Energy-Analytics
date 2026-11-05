@@ -5,8 +5,10 @@ from core.auth import (
     current_user,
     is_authenticated,
     logout,
+    maintain_session_cookie,
     render_login_page,
     render_user_chip,
+    try_auto_login,
 )
 from core.styles import inject_css
 from core.icons import icon
@@ -28,9 +30,14 @@ inject_css()
 # LOGIN_MODE = "streamlit" -> the built-in login screen below protects :8501.
 # LOGIN_MODE = "react"     -> legacy value from the old React portal, which has
 #                             been removed; nothing listens on :5173 anymore.
-if LOGIN_MODE == "streamlit" and not is_authenticated():
-    render_login_page()
-    st.stop()
+# Home's pillar cards reload the page (?nav=q1..), which starts a brand-new
+# session; try_auto_login() rebuilds it from the signed cookie so a signed-in
+# user lands straight on the question page instead of back at the login screen.
+if LOGIN_MODE == "streamlit":
+    try_auto_login()
+    if not is_authenticated():
+        render_login_page()
+        st.stop()
 
 # ---------------- Sidebar: signed-in user + dashboard selector ----------------
 if current_user() is not None:
@@ -109,3 +116,8 @@ dashboard_module.render()
 # ---------------- Footer ----------------
 st.divider()
 st.caption("Data Sources: Our World in Data | Ember | IMF DataMapper | Pakistan Economic Survey | NEPRA State of the Industry Reports | OGRA reports | HDIP Pakistan Energy Yearbook")
+
+# ---------------- Session cookie keeper ----------------
+# Zero-height component: pushes the signed cookie once after a manual sign-in
+# so later card-click reloads auto-login (invisible in the steady state).
+maintain_session_cookie()

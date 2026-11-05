@@ -2,181 +2,105 @@
 
 **Question:** *What are the bottlenecks in achieving planned targets?*
 
-A benchmark-tracking dashboard. It measures four national energy indicators
-against their targets, ranks how badly each is missed, and projects them all to
-2035 so it is clear which gap closes and which one widens.
+This dashboard measures four national energy indicators against their targets,
+scores how badly each one is missed, and runs every series to 2035 so you can
+see which gap closes and which one widens.
 
 ---
 
-## 1. How the question is answered
+## 1. Algorithms & formulas
 
-| Part of the question | What the dashboard does |
+| Technique | Formula / rule |
 |---|---|
-| "bottlenecks" | Four KPIs scored against benchmarks and ranked worst-first |
-| "achieving planned targets" | Each card carries its benchmark, the gap in percentage points, and a `#1 / #2 bottleneck` chip on the worst misses |
-| "planned" horizon | Every series runs 2002 → 2035, with reported vs modelled years marked |
+| **Direction-aware gap** | `gap = target − actual` for lower-is-better metrics, `gap = actual − target` for higher-is-better ones. **Positive gap always means the benchmark is met** — one rule works for all four cards, so a missed target can never show a green badge. |
+| **Achievement %** | lower-is-better: `target / actual × 100` · higher-is-better: `actual / target × 100`, clamped to 0–200% so one wild year cannot flatten the scale. |
+| **Severity bands** | gap ≥ +10 → "Exceeding" · ≥ 0 → "On track" · ≥ −5 → "Slightly behind" · ≥ −15 → "Off track" · ≥ −30 → "Critical" · below that → "Severe bottleneck". |
+| **Bottleneck ranking** | `score = missed_pp × 0.6 + (relative shortfall × 100) × 0.4`. Combining the raw percentage-point miss with the miss *relative to the target size* means a small target missed badly is not hidden by a big target missed slightly. The two worst get a `#1 / #2 bottleneck` chip. |
+| **Trend projection** | Past the last reported year each metric follows its own rule (see §4). Reported years are solid line, projected years dashed, unreported years print nothing. |
 
 ---
 
-## 2. The four KPIs
+## 2. KPI cards
 
-All four are judged on a **single reference year** — the final year of the
-sidebar Years range — so they stay comparable. Each card carries the benchmark,
-the direction-aware gap, the year-over-year move, the severity band, and a
-`#1 bottleneck` / `#2 bottleneck` chip on the two worst misses.
+All four are judged on **one reference year** — the last year of the sidebar
+range — so they stay comparable. Each card shows the benchmark, the gap in
+percentage points, the year-over-year move, and its severity band.
 
-| Code | KPI | Working | Benchmark | Better when |
-|---|---|---|---|---|
-| **K1** | Energy Losses % of Supply | `total_losses_toe / total_primary_supply_toe × 100` | 28.23% | lower |
-| **K2** | Import Dependence % | `(LNG Imports + Imported Electricity) / total primary supply × 100` | 0.00% | lower |
-| **K3** | Renewable Share % | `(solar+wind+hydro+other) / total generation × 100` | 30.00% | higher |
-| **K4** | Gas Self-Sufficiency % | `production_bcf / consumption_bcf × 100` | 122.37% | higher |
+| Card | Formula | Benchmark | Better when |
+|---|---|---|---|
+| **K1 — Energy Losses % of Supply** | `total_losses_toe / total_primary_supply_toe × 100` | 28.23% | lower |
+| **K2 — Import Dependence %** | `(LNG Imports + Imported Electricity) / total primary supply × 100` | 0.00% | lower |
+| **K3 — Renewable Share %** | `(solar + wind + hydro + other) / total generation × 100` | 30.00% (ARE Policy 2019) | higher |
+| **K4 — Gas Self-Sufficiency %** | `production_bcf / consumption_bcf × 100` | 122.37% | higher |
 
-**Benchmarks** come from the `dim_target` table, with the official ARE Policy
-2019 renewable target (30%) layered on top by [`core/targets.py`](../../core/targets.py).
-Three of the four are *data-derived floors* — the best level Pakistan has
-actually recorded — so a missed benchmark means "worse than our own best year",
-not a policy failure.
-
-**Direction-aware gaps.** `gap = target − actual` for lower-is-better metrics and
-`gap = actual − target` for higher-is-better ones, so **positive always means the
-benchmark is met**. This matters: under the old fixed logic, imports at 20%
-against a 30% target were flagged as a 10pp failure when they were actually
-comfortably inside the target.
-
-**Default view (range 2002–2035, judged on 2035):**
-
-| KPI | Value | Gap | % of benchmark | Card badge |
-|---|---|---|---|---|
-| K1 Losses | 27.16% | +1.1pp | 104% | On track |
-| K2 Import Dependence | 38.26% | −38.3pp | 0% | Severe |
-| K3 Renewable Share | 50.05% | +20.0pp | 167% | Exceeding |
-| K4 Gas Self-Sufficiency | 47.80% | −74.6pp | 39% | #1 bottleneck |
-
-(Gaps are shown to one decimal place, as on the cards.)
-
-**Ranking** combines the percentage-point shortfall with the shortfall relative
-to the benchmark (`missed × 0.6 + relative shortfall × 100 × 0.4`), so a small
-target missed badly is not hidden by a large target missed slightly.
+Benchmarks come from the `dim_target` table. Three of the four are *historical
+bests* — the best level Pakistan actually recorded — so missing them means
+"worse than our own best year", not a policy failure. The 30% renewable target
+is the one official policy number.
 
 ---
 
-## 3. Layout
+## 3. Visuals
 
-### 3.1 Visuals
-
-| # | Chart | Working |
+| # | Chart | How it is drawn |
 |---|---|---|
-| V1 | **Where the Energy Is Lost** (waterfall) | Primary supply → transformation losses → T&D losses → other → final consumption, for the range's final year; balances exactly |
-| V2 | **Energy We Import** | Import share over time with imported volume as bars; years with no import row stay blank |
-| V3 | **Gas Made vs Gas Used** | Bars for production and consumption, deficit shaded, self-sufficiency on a second axis against its benchmark |
-| V4 | **Distance to Each Target** | All four gaps on one axis; above the middle line = benchmark met |
-| V5 | **Better Or Worse** | Slope chart: each metric's first reported year to its last reported year, coloured green when it moved the right way and red when it moved the wrong way |
+| **V1** | Where the Energy Is Lost (waterfall) | Primary supply → transformation losses → T&D losses → other → final consumption, for the range's final year. Checked to balance exactly: supply = losses + consumption. |
+| **V2** | Energy We Import | Import share over time as a line, imported volume as context bars. Years with no import row stay blank. |
+| **V3** | Gas Made vs Gas Used | Bars for production and consumption, the deficit shaded, self-sufficiency % on a second axis against its benchmark line. |
+| **V4** | Distance to Each Target | All four KPI gaps as bars on one axis; above the middle line = benchmark met. |
 
-The two charts that used to sit here were dropped because they only redrew what
-the cards and V4 already say: one metric's own path against its benchmark line,
-and achievement bars for the four targets.
+The "better or worse" slope chart was removed from the page; V4 already
+carries the direction answer for all four metrics.
 
-### 3.2 Sidebar
-
-Deliberately minimal — one control.
-
-| Control | Range | Effect |
-|---|---|---|
-| **Years to show** | 2002 – 2035 | Zooms every chart, sets the year the KPI cards and the waterfall are judged on |
-| **Unit Selection** | Energy (TOE/KTOE/MTOE), Gas (BCF/TCF/MMSCF) | Re-renders the waterfall, import bars and gas chart |
+Sidebar is deliberately minimal: one **Years to show** range (2002–2035) that
+sets the judging year and zooms every chart, plus the shared unit selectors.
 
 ---
 
-## 4. Data
+## 4. Projection rules (2025 → 2035)
+
+- **Primary supply** — geometric trend of the last five reported years, clamped
+  to −5% … +8%/yr.
+- **Energy losses %** — five-year average level with the observed slope halved
+  and frozen after six years (the ratio has been flat since 2016).
+- **Import dependence** — the 2014–2018 import-share slope extended at 65%
+  strength, capped at 60%.
+- **Renewable share** — damped least-squares slope of recent years; generation
+  grows at its five-year CAGR.
+- **Gas** — production declines and consumption grows at recent rates (floors
+  −2% / +2% per year), which is what widens the self-sufficiency gap.
+- **Waterfall split** — the last reported loss breakdown is held constant; final
+  consumption closes the balance.
+
+These are trend extrapolations, not forecasts — they show what happens if
+nothing changes.
+
+---
+
+## 5. Data
 
 | Table | Used for |
 |---|---|
-| `fact_energy_overview` | Primary supply, final consumption, transformation & T&D losses (TOE) — reported 2005–2019 |
-| `fact_primary_energy_supply` | Supply and imports by source (TOE) — reported 2002–2024 |
-| `fact_renewable_energy` | Generation mix by source (GWh) — reported 1999–2024 |
-| `fact_natural_gas` | Production and consumption (BCF) — reported 1999–2018 |
-| `dim_energy_source` | Source names, used to identify the import rows |
-| `dim_target` | Benchmarks, direction and source of each |
-| `dim_year` | Fiscal year ↔ calendar year |
+| `fact_energy_overview` | supply, consumption, transformation & T&D losses (TOE), reported 2005–2019 |
+| `fact_primary_energy_supply` | supply and imports by source (TOE), reported 2002–2024 |
+| `fact_renewable_energy` | generation by source (GWh) |
+| `fact_natural_gas` | production & consumption (BCF), reported 1999–2018 |
+| `dim_target` | benchmark, direction and source of each target |
 
-**Joins:** `fact_renewable_energy.calendar_year → dim_year.calendar_year`; the
-other fact tables on `dim_year.year_id`.
-
-**Base units:** TOE · GWh · BCF · MW. Percentages are unit-free.
+Known limits: import rows stop at 2018 (K2 prints "no reading" after that until
+the projection takes over, tagged *Projected*); losses stop at 2019; K2's 0%
+benchmark is the historical minimum and is arithmetically unreachable.
 
 ---
 
-## 5. Method & assumptions
+## 6. Files
 
-### Data provenance
-
-Every annual value is tagged, and the tags drive the line styles:
-
-| Tag | Meaning | Drawn as |
+| Layer | File | Role |
 |---|---|---|
-| **Actual** | Reported in the database | solid |
-| **Missing** | A year inside the reported window with no reading — it prints nothing | line break |
-| **Projected** | Modelled past the last reported year (2025 onwards) | dashed |
+| Engine | [`core/bottleneck_metrics.py`](../../core/bottleneck_metrics.py) | series build, projection, gaps, ranking |
+| Benchmarks | [`core/targets.py`](../../core/targets.py) | `dim_target` load, policy overrides, severity bands |
+| Charts | `charts.py` | the four Plotly visuals |
+| Page | `page.py` | sidebar, KPI cards, layout |
 
-Nothing is bridged inside the window: an unreported year leaves a visible gap in
-the line rather than an estimate.
-
-Reported coverage differs per metric — losses stop at 2019, gas at 2018,
-generation at 2024 — so each series is projected on from its own last reported
-year; the years before that with no reading stay blank.
-
-### Projection rules
-
-- **Primary supply** — geometric trend of the last five reported years (clamped
-  to −5% … +8%).
-- **Energy losses %** — five-year average level with the observed slope damped by
-  half and frozen after six years, because the loss ratio has been broadly flat
-  since 2016.
-- **Import dependence** — the 2014–2018 import-share slope (the years that
-  actually report import rows) extended at 65% strength, capped at 60%.
-- **Renewable share** — damped least-squares slope of recent years; generation
-  grows at its five-year CAGR.
-- **Gas** — production declines and consumption grows at their recent rates,
-  with floors of −2%/yr and +2%/yr, which is what widens the self-sufficiency gap.
-- **Waterfall split** — the last reported breakdown of losses into
-  transformation, T&D and other is held constant, and final consumption closes
-  the balance.
-
-### Validation built into the code
-
-- The waterfall is checked to balance in every year (supply = losses +
-  consumption, exactly).
-- The KPI reference year is clamped into the data range, so no card can silently
-  read zero.
-- Import matching uses the exact source names `LNG Imports` and
-  `Imported Electricity` and prefers the `imports_toe` column over `supply_toe`.
-
----
-
-## 6. Known limitations
-
-- **Import data stops at 2018.** `fact_primary_energy_supply` has no import rows
-  for 2019 onwards, so 2019–2024 print no reading on the K2 card and break the
-  chart line; K2's 2035 value is a trend projection from 2018, tagged
-  `Projected`. Load real import rows and the KPI picks them up automatically.
-- **K2's benchmark is 0%** (the historical minimum), which makes it arithmetically
-  impossible to satisfy. It is the data-derived floor, not a policy goal.
-- **Losses beyond 2019** are modelled because `fact_energy_overview` ends there,
-  even though supply is still reported for 2020–2024.
-- The 2035 numbers are trend extrapolations, not forecasts — they show what
-  happens if nothing changes.
-
----
-
-## 7. Files
-
-| File | Purpose |
-|---|---|
-| `page.py` | Sidebar, KPI cards, layout |
-| `charts.py` | The four Plotly figures |
-| `README.md` | This document |
-
-Related: [`core/bottleneck_metrics.py`](../../core/bottleneck_metrics.py) (projection
-and gap engine), [`core/targets.py`](../../core/targets.py) (benchmarks),
-[`core/components.py`](../../core/components.py) (cards, footer).
+Base units TOE · GWh · BCF · MW — percentages are unit-free.
+See [UNIT_GUIDE.md](../../UNIT_GUIDE.md).

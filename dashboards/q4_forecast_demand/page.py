@@ -46,9 +46,8 @@ from core.units import display_factor, fmt, normalise
 from .charts import (
     visual1_history_trends,
     visual2_scenario_fans,
-    visual3_drivers,
-    visual4_sector_mix,
-    visual5_reliability,
+    visual3_sector_mix,
+    visual4_reliability,
 )
 
 VIEW_START = 2000
@@ -220,7 +219,6 @@ def render() -> None:
         st.stop()
 
     hist = data["history"]
-    models = data["models"]
     kpis = data["kpis"]
     breaks = data.get("breaks", {})
     total_break = breaks.get("total_final")
@@ -301,19 +299,7 @@ def render() -> None:
                               break_year=HISTORY_END),
         use_container_width=True, config=_CHART_CONFIG)
 
-    # --- Visual 3: why the forecast moves ---
-    st.markdown(
-        section_title("Visual 3 – What moves demand", "insights",
-                      badge=f"fitted {DEFAULT_CALIB_START}–{HISTORY_END}"),
-        unsafe_allow_html=True)
-    st.caption("Demand next to the two things that push it up: how much the economy makes, and how many people there are. The dots on the right show that when income per head rises, energy per head rises with it.")
-    st.plotly_chart(
-        visual3_drivers(hist, models.get("total_final", {}), "total_final",
-                        (VIEW_START, HISTORY_END), unit_energy=energy_unit,
-                        factor=e_factor),
-        use_container_width=True, config=_CHART_CONFIG)
-
-    # --- Visuals 4 and 5: who uses it, and how far to trust the guess ---
+    # --- Visuals 3 and 4: who uses it, and how far to trust the guess ---
     tests = data["backtest"]
     metrics = tests.get("metrics")
     train_end = int(tests.get("train_end", HISTORY_END - 4))
@@ -321,23 +307,23 @@ def render() -> None:
     use_col, trust_col = st.columns(2)
     with use_col:
         st.markdown(
-            section_title("Visual 4 – Who uses the electricity", "demand",
+            section_title("Visual 3 – Who uses the electricity", "demand",
                           badge=f"{elec_unit} · {base_scenario} to {horizon}"),
             unsafe_allow_html=True)
         st.caption(f"Electricity used by each sector in the last measured year, and what the same sectors use in {horizon}.")
         st.plotly_chart(
-            visual4_sector_mix(data["sectors"], horizon, unit_elec=elec_unit,
+            visual3_sector_mix(data["sectors"], horizon, unit_elec=elec_unit,
                                factor=g_factor, scenario=base_scenario),
             use_container_width=True, config=_CHART_CONFIG)
 
     with trust_col:
         st.markdown(
-            section_title("Visual 5 – How far to trust the forecast", "intensity",
+            section_title("Visual 4 – How far to trust the forecast", "intensity",
                           badge=f"tested on {train_end + 1}–{HISTORY_END}"),
             unsafe_allow_html=True)
         st.caption("The models were asked to predict the last four years without having seen them. Each bar is how far off that guess was on average — a shorter bar is a better forecast.")
         st.plotly_chart(
-            visual5_reliability(metrics, train_end, HISTORY_END),
+            visual4_reliability(metrics, train_end, HISTORY_END),
             use_container_width=True, config=_CHART_CONFIG)
 
     # ---- Bottom line ----

@@ -1,14 +1,13 @@
 """
 charts.py -- visuals for the Forecasted Energy Demand dashboard (question 4).
 
-Five figures, all of them part of the answer to "what will demand be?":
+Four figures, all of them part of the answer to "what will demand be?":
 
 V1  Demand so far        -- electricity, gas and total energy, in real terms
                             and as growth from the first year
 V2  Scenario paths       -- the low, planned and high demand futures
-V3  What moves demand    -- demand next to income and population
-V4  Sector mix           -- which sectors use the electricity
-V5  Trust in the guess   -- how far off the model was on years it had not seen
+V3  Sector mix           -- which sectors use the electricity
+V4  Trust in the guess   -- how far off the model was on years it had not seen
 
 Every forecast year is drawn dashed and every year we measured is drawn solid,
 so a guessed point is never mistaken for a real one.
@@ -212,104 +211,9 @@ def visual2_scenario_fans(bands: Dict[str, pd.DataFrame], hist: pd.DataFrame,
     return _dark_theme(fig, height=380, x_title=None)
 
 
-# ═════════════════ V3: what moves demand ═════════════════════════════════════
+# ═════════════════ V3: who uses the electricity ══════════════════════════════
 
-def visual3_drivers(hist: pd.DataFrame, model: dict, key: str, year_range: tuple,
-                    unit_energy: str = "TOE", factor: float = 1.0):
-    """
-    Left: demand next to the economy and the population, all on one growth scale.
-    Right: the link the forecast is built on -- demand per head against income
-    per head, with the fitted curve drawn through the points.
-    """
-    spec = series_spec(key)
-    if hist is None or hist.empty or spec["column"] not in hist.columns:
-        return _empty_fig()
-
-    window = hist[(hist["calendar_year"] >= year_range[0])
-                  & (hist["calendar_year"] <= year_range[1])].copy()
-    window = window.dropna(subset=[spec["column"], "gdp_real_index", "population"])
-    if window.empty:
-        return _empty_fig()
-
-    fig = make_subplots(rows=1, cols=2, specs=[[{"secondary_y": True}, {}]],
-                        subplot_titles=("Demand next to what drives it",
-                                        "Income per head vs demand per head"))
-
-    demand = window[spec["column"]].to_numpy(dtype=float)
-    gdp_index = window["gdp_real_index"].to_numpy(dtype=float)
-    pop = window["population"].to_numpy(dtype=float)
-    years = window["calendar_year"].to_numpy(dtype=int)
-
-    demand_index = demand / demand[0] * 100.0
-    gdp_norm = gdp_index / gdp_index[0] * 100.0
-    pop_norm = pop / pop[0] * 100.0
-
-    fig.add_trace(go.Scatter(
-        x=years, y=demand_index, mode="lines+markers", name=f"{spec['short']}",
-        line=dict(color=spec["color"], width=3),
-        marker=dict(size=6, color=spec["color"]),
-        hovertemplate=f"{spec['short']}<br>%{{x}}: <b>%{{y:,.1f}}</b><extra></extra>",
-        connectgaps=False,
-    ), row=1, col=1, secondary_y=False)
-
-    fig.add_trace(go.Scatter(
-        x=years, y=gdp_norm, mode="lines+markers", name="Economy (GDP)",
-        line=dict(color="#F472B6", width=2.4),
-        marker=dict(size=5, color="#F472B6"),
-        hovertemplate="Economy (GDP)<br>%{x}: <b>%{y:,.1f}</b><extra></extra>",
-        connectgaps=False,
-    ), row=1, col=1, secondary_y=True)
-
-    fig.add_trace(go.Scatter(
-        x=years, y=pop_norm, mode="lines+markers", name="Population",
-        line=dict(color="#94A3B8", width=2, dash="dot"),
-        marker=dict(size=4, color="#94A3B8"),
-        hovertemplate="Population<br>%{x}: <b>%{y:,.1f}</b><extra></extra>",
-        connectgaps=False,
-    ), row=1, col=1, secondary_y=True)
-
-    # ── right: per-capita relationship ─────────────────────────────────────
-    rgdppc = (window["real_gdp_per_capita"].to_numpy(dtype=float))
-    per_capita = (demand / pop) * factor * 1e6      # per million people, readable
-    valid = np.isfinite(rgdppc) & np.isfinite(per_capita) & (rgdppc > 0)
-    rgdppc, per_capita = rgdppc[valid], per_capita[valid]
-
-    fig.add_trace(go.Scatter(
-        x=rgdppc, y=per_capita, mode="markers", name="Years we measured",
-        marker=dict(size=9, color=spec["color"], line=dict(width=1, color="#1A1D24")),
-        text=[str(y) for y in years[valid]],
-        hovertemplate="%{text}<br>income per head: %{x:,.0f}<br>demand per head: <b>%{y:,.1f}</b><extra></extra>",
-    ), row=1, col=2)
-
-    eps = model.get("elasticity_income")
-    r2 = model.get("r2_per_capita")
-    if eps is not None and np.isfinite(eps) and len(rgdppc) >= 2:
-        grid = np.linspace(rgdppc.min(), rgdppc.max(), 60)
-        curve = per_capita[0] * (grid / rgdppc[0]) ** float(eps)
-        fig.add_trace(go.Scatter(
-            x=grid, y=curve, mode="lines", name="Fitted link",
-            line=dict(color="#F472B6", width=2.2, dash="dash"), hoverinfo="skip",
-        ), row=1, col=2)
-        annotation = (f"Demand per head rises with income per head<br>"
-                      f"fit quality R² = {float(r2):.3f}" if r2 is not None and np.isfinite(r2)
-                      else "Demand per head rises with income per head")
-        fig.add_annotation(x=0.04, y=0.96, xref="x2 domain", yref="y2 domain",
-                           text=annotation, showarrow=False, align="left",
-                           font=dict(size=11, color="#E2E8F0"),
-                           bgcolor="rgba(35,40,48,0.9)", borderpad=6)
-
-    fig.update_xaxes(title_text="Year", row=1, col=1)
-    fig.update_yaxes(title_text="Demand (first year = 100)", row=1, col=1, secondary_y=False)
-    fig.update_yaxes(title_text="Economy / people (first year = 100)", showgrid=False,
-                     row=1, col=1, secondary_y=True)
-    fig.update_xaxes(title_text="Income per head (index)", row=1, col=2)
-    fig.update_yaxes(title_text=f"Demand per million people ({unit_energy})", row=1, col=2)
-    return _dark_theme(fig, height=400, x_title=None)
-
-
-# ═════════════════ V4: who uses the electricity ══════════════════════════════
-
-def visual4_sector_mix(sectors: dict, horizon: int, unit_elec: str = "GWh",
+def visual3_sector_mix(sectors: dict, horizon: int, unit_elec: str = "GWh",
                        factor: float = 1.0, scenario: str = "Base"):
     """Electricity use by end-use sector: the last measured year vs the horizon."""
     history = sectors.get("history") if sectors else None
@@ -346,9 +250,9 @@ def visual4_sector_mix(sectors: dict, horizon: int, unit_elec: str = "GWh",
     return _dark_theme(fig, height=400, x_title=f"Electricity used ({unit_elec})", y_title="Sector")
 
 
-# ═════════════════ V5: how far to trust the forecast ═════════════════════════
+# ═════════════════ V4: how far to trust the forecast ═════════════════════════
 
-def visual5_reliability(metrics: pd.DataFrame, train_end: int, test_end: int):
+def visual4_reliability(metrics: pd.DataFrame, train_end: int, test_end: int):
     """Average error per series and model on the years the model had not seen."""
     if metrics is None or metrics.empty:
         return _empty_fig("No test results to show")

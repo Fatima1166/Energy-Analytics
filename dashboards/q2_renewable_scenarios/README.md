@@ -1,154 +1,88 @@
-# Q2 — Renewable Scenarios
+# Q2 — Renewable Energy Scenarios & Policy Impact
 
-**Question:** *What are the potential outcomes of installing renewable energy sources in different energy scenarios?*
+Answers Question 2: *"What renewable-energy scenarios could Pakistan follow, and
+what would each one mean for the power mix, emissions and gas imports?"*
 
-It reads reported history from MySQL, extends it to 2035 under five policy
-scenarios, and reports the outcome of each. Everything on the page reacts live
-to the two sidebar slicers.
+The page grows five "what-if" paths from the last reported year and shows where
+each one ends up. Everything to the left of the horizon is real data; everything
+to the right is a scenario projection, clearly drawn as dashed lines.
 
 ---
 
-## 1. How the question is answered
+## 1. Algorithms & formulas
 
-| Part of the question | What the dashboard does |
+| Technique | Formula / rule |
 |---|---|
-| "potential outcomes" | RE share, capacity built, CO₂ avoided and import savings at the horizon year |
-| "installing renewable energy" | Solar / wind / hydro / other generation compounded from the last reported year (2025) |
-| "different energy scenarios" | All five projected together, and shown side by side in one chart |
+| **Compound growth** | Each renewable source grows year on year: `value(year n) = base × (1 + g/100)ⁿ`, where `base` is the last reported year and `g` is the scenario's growth rate for that source. |
+| **Scenario what-if** | Five fixed growth-rate sets (table below) — the only input that changes between paths. |
+| **Demand ceiling** | Total demand grows at a steady `demand_growth` (default **2.5%/yr**); nuclear grows **1.5%/yr**. Renewables + nuclear take what they take; whatever is left is fossil. |
+| **Fossil split** | The leftover residual demand is split in the country's standing ratio: `coal = 35.6%` and `gas = 64.4%` of remaining fossil power. |
+| **Counterfactual baseline** | "Avoided" numbers compare the scenario against a status-quo world where renewables keep growing at only 2%/yr (hydro 1%/yr). `avoided_fossil = baseline_fossil − scenario_fossil`. |
+| **CO₂ accounting** | `co2_t = fossil_GWh × 1000 × factor`, with t CO₂/MWh: coal **0.9**, gas **0.4**, oil **0.7**. |
+| **Gas-import savings** | Every GWh of gas power the scenario removes saves imported LNG: `savings = gas_avoided_TWh × $75 M` (≈ $75 million per TWh). |
+| **Capacity mapping** | Renewable MW is grown with the same compound rule from the last reported capacity, scaled to the energy projection. |
 
-Each scenario keeps the growth rates it was defined with -- there is no manual
-override -- so the five stay a like-for-like comparison rather than one tweaked
-contender.
+### The five scenarios (%/yr growth)
 
----
-
-## 2. Layout
-
-### 2.1 KPI cards — scenario outcomes
-
-These are **not** historical values. Each card reports the selected scenario at
-the **final year of the sidebar Year Range**. Change Scenario or Year Range and
-the cards move.
-
-| KPI | Working | Default (Accelerated, 2035) |
-|---|---|---|
-| **Renewable Share** | `re_gwh / total_gen_gwh × 100` | 73.5% of all power |
-| **Renewable Power Built** | sum of projected `installed_capacity_mw` across sources | 36,135 MW |
-| **CO₂ Avoided** | cumulative `co2_avoided_t` after the last reported year, auto-scaled t → kt → Mt | 258.6 million tonnes of CO₂ |
-| **Gas Import Savings** | cumulative `lng_savings_musd` after the last reported year | $21,607 million USD |
-
-Every card label is written in plain words, not unit symbols: mass units read
-"million tonnes of CO₂" rather than "MtCO₂", and money reads "million USD"
-rather than "$21,607M".
-
-The first two cards also show the change against 2024 ("32.6 percentage points
-more than 2024", "120.4% more than 2024"), coloured by whether the movement is
-an improvement. The two savings cards give the running total with that year's
-own figure underneath ("2035 alone: …"). If the range stops at a recorded year
-there is nothing forecast to total, so those two cards show
-"-- needs a later end year" instead of a zero.
-
-**Scenario spread at 2035** (the whole point of the dashboard), read from
-`compare_all_scenarios`:
-
-| Scenario | RE Share | CO₂ at 2035 | CO₂ avoided (cum.) | LNG saved (cum.) |
+| Scenario | Solar | Wind | Hydro | Other RE |
 |---|---|---|---|---|
-| Baseline | 32.0% | 74.8 Mt | 0 | $0 |
-| Moderate | 46.0% | 56.3 Mt | 96.5 Mt | $8,066 M |
-| Accelerated | 73.5% | 19.7 Mt | 258.6 Mt | $21,607 M |
-| Solar-led | 91.3% | 0 | 409.3 Mt | $34,200 M |
-| Wind-led | 60.4% | 37.1 Mt | 158.3 Mt | $13,230 M |
+| Baseline | 2 | 2 | 1 | 1 |
+| Moderate | 8 | 8 | 2 | 3 |
+| **Accelerated** (default) | 15 | 15 | 3 | 5 |
+| Solar-led | 25 | 5 | 1.5 | 2 |
+| Wind-led | 5 | 25 | 1.5 | 2 |
 
-### 2.2 Slicers (sidebar)
+---
 
-| Slicer | Range | Effect |
+## 2. KPI cards (scenario outcomes at the horizon year)
+
+All four cards read the **selected scenario's** projected final year — they move
+when you change the Scenario or Year Range in the sidebar.
+
+| Card | Value | How it is computed |
 |---|---|---|
-| **Pick a scenario** | Baseline / Moderate / Accelerated / Solar-led / Wind-led | Rebuilds every chart and KPI card |
-| **Years to show** | 2000 – 2035 | Zooms the charts; sets the year the KPI cards are judged on |
-| **Unit Selection** | Electricity, Power, Emission | Re-renders charts and cards in the chosen unit |
+| **Renewable Share** | `renewable_GWh / total_GWh × 100` in the horizon year | shown with the % change vs the last reported year |
+| **Renewable Power Built (MW)** | solar + wind + hydro + other RE capacity in the horizon year | delta vs the last reported capacity, e.g. "+121% more than 2025" |
+| **CO₂ Avoided** | `Σ (baseline fossil − scenario fossil) × emission factor` over all projected years — a running total, with the horizon year's own figure underneath | cumulative tonnes kept out of the air |
+| **Gas Import Savings** | `Σ gas_replaced_TWh × $75 M` over the projected years | cumulative USD not spent on LNG |
 
-### 2.3 Visuals
+If the chosen year range ends before the horizon, the cards that need a future
+year say so instead of showing a zero.
 
-| # | Chart | Working |
+---
+
+## 3. Visuals
+
+| # | Chart | How it is drawn |
 |---|---|---|
-| V1 | **Renewable Share Over Time** (actual + forecast) | All five at once; history solid, projection dashed |
-| V2 | **Where the Power Comes From** stacked column | Solar / wind / hydro / nuclear / gas / coal per year, active scenario |
-| V3 | **Results** — toggle *One year at a time* or *All five scenarios* | Yearly displaced fossil and avoided CO₂, or all five scenarios at the horizon |
-| V4 | **Renewable Power Plants Built** stacked area | Hydropower / wind / solar / bagasse |
+| **V1** | Renewable Share Over Time | Solid line = recorded history of `renewable / total × 100`; dashed lines = all five scenario paths; the selected scenario is highlighted. |
+| **V2** | Where the Power Comes From | Stacked area by source (solar, wind, hydro, nuclear, gas, coal) for every year under the selected scenario. |
+| **V3** | Outcomes (two modes) | **Yearly tab:** one line per year showing fossil power replaced, CO₂ avoided, and savings. **Comparison tab:** the five scenarios side by side at the horizon year — renewable share, fossil replaced, CO₂ avoided. |
+| **V4** | Renewable Power Plants Built | Stacked MW capacity by renewable source over the years — the build-out the scenario needs. |
 
 ---
 
-## 3. Data
+## 4. Data
 
-| Table | Used for |
-|---|---|
-| `fact_renewable_energy` | Solar / wind / hydro / other / coal / gas / nuclear generation (GWh), capacity (MW), demand |
-| `fact_renewable_capacity` | Installed capacity by source (2006–2018) |
-| `dim_emission_factor` | Emission factors (tCO₂/MWh) |
-| `dim_year` | Fiscal year ↔ calendar year |
+| Query | Table | Used for |
+|---|---|---|
+| `Q_RENEWABLE_ENERGY` | `fact_renewable_energy` | solar/wind/hydro/other generation base |
+| `Q_ELEC_GEN` | `fact_elec_generation` | total generation base |
+| `Q_RENEWABLE_CAPACITY` | `fact_renewable_capacity` | MW capacity base |
+| `Q_ECONOMIC` | `fact_economic_indicators` | demand context |
 
-**Key joins:** `fact_renewable_energy.calendar_year → dim_year.calendar_year`;
-other fact tables on `dim_year.year_id`.
-
-**Base units:** TOE · GWh · MW · BCF · t · USD. The Unit Selection slicer
-converts at render time — see [UNIT_GUIDE.md](../../UNIT_GUIDE.md).
+Projection base = the latest year that actually reported values. Missing years
+are never carried forward as zeros.
 
 ---
 
-## 4. Method & assumptions
+## 5. Files
 
-**Actual vs projected.** Reported data runs to **2025** for generation (the
-FY2025-26 row from Economic Survey 2025-26 / Ember); everything after the last
-reported year is modelled, and the chart boundary is drawn explicitly (solid =
-reported, dashed = projected).
+| Layer | File | Role |
+|---|---|---|
+| Engine | [`core/projections.py`](../../core/projections.py) | compound growth, scenario paths, avoided CO₂ & savings |
+| Settings | [`config/settings.py`](../../config/settings.py) | SCENARIOS rates, emission factors, LNG $/TWh |
+| Charts | `charts.py` | the four Plotly visuals |
+| Page | `page.py` | sidebar controls, KPI cards, layout |
 
-**Growth.** Generation compounds from the last reported year:
-`value(year) = base × (1 + growth/100)^n`. Scenario presets:
-
-| Scenario | Solar | Wind | Hydro | Other |
-|---|---|---|---|---|
-| Baseline | 2.0% | 2.0% | 1.0% | 1.0% |
-| Moderate | 8.0% | 8.0% | 2.0% | 3.0% |
-| Accelerated | 15.0% | 15.0% | 3.0% | 5.0% |
-| Solar-led | 25.0% | 5.0% | 1.5% | 2.0% |
-| Wind-led | 5.0% | 25.0% | 1.5% | 2.0% |
-
-Demand grows at 2.5%/yr and nuclear at 1.5%/yr. Fossil generation fills whatever
-demand remains after renewables and nuclear, split 35.6% coal / 64.4% gas.
-
-**Emission factors** (tCO₂/MWh) come from `dim_emission_factor`, with
-`config/settings.py` as the fallback: **coal 0.9, gas 0.4, oil 0.7**, hydro /
-nuclear / renewables 0. CO₂ avoided compares each scenario against a status-quo
-baseline in which renewables keep growing at only 2%/yr.
-
-**LNG savings** value avoided gas generation at ~$75 M per TWh.
-
----
-
-## 5. Known limitations
-
-- A year inside the reported window (up to 2025) that the record never reported
-  prints nothing — no zero, no carry from another year. The scenario paths are
-  model output from the first unreported year onwards.
-- Reported capacity now reaches FY2025-26 in `fact_renewable_capacity`; the
-  projection still scales renewable capacity with renewable generation.
-- When the Year Range ends before 2024 the page stays on recorded history: the
-  two savings cards show "-- needs a later end year" rather than a zero.
-- Compounding a 25%/yr growth rate to 2035 gives very large capacity (Wind-led
-  reaches ~70 GW); that is the arithmetic of the assumption, not a feasibility
-  claim.
-
----
-
-## 6. Files
-
-| File | Purpose |
-|---|---|
-| `page.py` | Sidebar slicers, KPI computation, layout |
-| `charts.py` | The four visuals (V3 is built two ways) |
-| `config.py` | `KPI_CONFIG` (card metadata) and `DEFAULT_SCENARIO` |
-| `README.md` | This document |
-
-Related: [`core/projections.py`](../../core/projections.py) (scenario engine),
-[`core/units.py`](../../core/units.py) (conversion),
-[`core/components.py`](../../core/components.py) (cards, footer).
+Base units GWh · MW · t CO₂ · USD — see [UNIT_GUIDE.md](../../UNIT_GUIDE.md).

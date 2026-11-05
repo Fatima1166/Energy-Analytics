@@ -9,7 +9,6 @@ V1  Loss waterfall       -- where primary supply leaks, for one year
 V2  Import dependence    -- import share build-up with imported volume
 V3  Gas balance          -- production vs consumption, self-sufficiency
 V4  Bottleneck gaps      -- all four KPI gaps on one comparable axis
-V5  Better or worse      -- slope: first reported year to last reported year
 
 Each target's own benchmark, gap and rank already sit on its KPI card, and V4
 carries the "are we getting closer" answer for all four -- so no chart here
@@ -440,87 +439,5 @@ def visual4_gap_paths(timeline: pd.DataFrame, year_range: tuple,
         tickfont=dict(size=11, color=_TICK),
         title=dict(text=gap_axis,
                    font=dict(size=11, color=_TICK))))
-    return fig
-
-
-# ═══════════════════════════════ V5 -- better or worse (slope) ═════════════
-
-_METRIC_WORDS = {
-    "losses_pct": ("Energy Losses %", "#EF4444", "lower"),
-    "import_pct": ("Import Dependence %", "#F59E0B", "lower"),
-    "re_share_pct": ("Renewable Share %", "#10B981", "higher"),
-    "gas_self_suff_pct": ("Gas Self-Sufficiency %", "#00A6FB", "higher"),
-}
-
-
-def visual5_bottleneck_slope(series: pd.DataFrame, year_range: tuple) -> go.Figure:
-    """One line per bottleneck metric: its value in the first reported year of
-    the range and its value in the last reported year.  A line that moves
-    towards the improvement side (losses/imports down, renewables/gas up) is
-    painted green; a line that moves the wrong way is red.  This is the "is
-    the bottleneck easing or tightening?" answer that V1..V4 do not give."""
-    fig = go.Figure()
-    if series is None or series.empty:
-        return _dark_theme(fig, height=380, y_title="Metric (%)",
-                           x_title="First reported → Last reported")
-
-    lo_yr, hi_yr = int(year_range[0]), int(year_range[1])
-    actual = series[(series["calendar_year"] >= lo_yr) &
-                    (series["calendar_year"] <= hi_yr)]
-
-    any_drawn = False
-    for metric, (label, colour, direction) in _METRIC_WORDS.items():
-        type_col = f"{metric}__type"
-        if metric not in actual.columns:
-            continue
-        if type_col in actual.columns:
-            pool = actual[actual[type_col] == ACTUAL]
-        else:
-            pool = actual[actual[metric].notna()]
-        if pool.empty:
-            continue
-        pool = pool.sort_values("calendar_year")
-        first_row = pool.iloc[0]
-        last_row = pool.iloc[-1]
-        x0 = str(int(first_row["calendar_year"]))
-        x1 = str(int(last_row["calendar_year"]))
-        v0 = float(first_row[metric])
-        v1 = float(last_row[metric])
-        moved_good = (v1 < v0) if direction == "lower" else (v1 > v0)
-        line_colour = "#10B981" if moved_good else "#EF4444"
-        fig.add_trace(go.Scatter(
-            x=[x0, x1], y=[v0, v1], mode="lines+markers+text",
-            name=label,
-            line=dict(color=line_colour, width=2.4),
-            marker=dict(size=9, color=[line_colour, line_colour]),
-            text=[f"{v0:.1f}%", f"{v1:.1f}%"],
-            textposition=["middle right", "middle left"],
-            textfont=dict(size=9.5, color=_TICK),
-            customdata=[v1 - v0],
-            hovertemplate=('<b>' + label + '</b><br>'
-                           f'{x0} \u2192 {x1}<br>'
-                           'First: <b>' + f'{v0:.2f}' + '%</b><br>'
-                           'Last: <b>' + f'{v1:.2f}' + '%</b><br>'
-                           'Change: ' + f'{(v1-v0):+.2f}' + ' pp'
-                           '<extra></extra>'),
-        ))
-        # a light grey label on the left axis so the reader can see what the
-        # line means even without hovering
-        any_drawn = True
-
-    if not any_drawn:
-        fig.add_annotation(text="No reported years in this range",
-                           xref="paper", yref="paper", x=0.5, y=0.5,
-                           showarrow=False, font=dict(color=_TICK, size=12))
-
-    _dark_theme(fig, height=380,
-                y_title="Metric value (% of the base)",
-                x_title="First reported year → Last reported year",
-                legend_h=False)
-    fig.update_layout(
-        legend=dict(orientation="h", y=-0.30, x=0.5, xanchor="center",
-                    font=dict(size=9.5, color="#C8CDD6")),
-        margin=dict(l=54, r=40, t=34, b=88),
-    )
     return fig
 
