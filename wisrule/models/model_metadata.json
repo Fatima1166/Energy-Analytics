@@ -1,0 +1,85 @@
+{
+  "demand_regime": {
+    "train_accuracy": 96.95,
+    "test_accuracy": 95.12,
+    "train_test_gap_pct": 1.83,
+    "cv_5fold_mean": 91.71,
+    "cv_5fold_std": 3.96,
+    "confusion_matrix": [
+      [
+        14,
+        0,
+        0
+      ],
+      [
+        0,
+        13,
+        1
+      ],
+      [
+        0,
+        1,
+        12
+      ]
+    ],
+    "classes": [
+      "Tier1_Low",
+      "Tier2_Medium",
+      "Tier3_High"
+    ]
+  },
+  "security_status": {
+    "train_accuracy": 100.0,
+    "test_accuracy": 100.0,
+    "train_test_gap_pct": 0.0,
+    "classes": [
+      "Moderate",
+      "Secure",
+      "Stressed"
+    ]
+  },
+  "regressors": {
+    "total_generation_gwh": {
+      "train_r2": 94.92,
+      "test_r2": 93.4,
+      "accuracy_pct": 95.96,
+      "features": [
+        "year",
+        "gdp_growth_pct",
+        "installed_capacity_mw",
+        "gen_hydro_gwh",
+        "gen_nuclear_gwh",
+        "gen_gas_gwh",
+        "gen_coal_gwh"
+      ]
+    },
+    "renewable_share_pct": {
+      "train_r2": 99.1,
+      "test_r2": 76.9,
+      "accuracy_pct": 93.33,
+      "features": [
+        "year",
+        "gdp_growth_pct",
+        "installed_capacity_mw",
+        "gen_hydro_gwh",
+        "gen_nuclear_gwh",
+        "gen_gas_gwh",
+        "gen_coal_gwh"
+      ]
+    },
+    "co2_emissions_t": {
+      "train_r2": 99.93,
+      "test_r2": 76.19,
+      "accuracy_pct": 94.34,
+      "features": [
+        "year",
+        "gdp_growth_pct",
+        "installed_capacity_mw",
+        "gen_hydro_gwh",
+        "gen_nuclear_gwh",
+        "gen_gas_gwh",
+        "gen_coal_gwh"
+      ]
+    }
+  }
+}

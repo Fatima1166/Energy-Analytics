@@ -1,0 +1,2 @@
+Scenario_ID,Name,Time,Location,Utility,Context,Active_Positive_Rules,Active_Negative_Rules,total_generation_gwh_pred,total_generation_gwh_pct_delta,renewable_share_pct_pred,renewable_share_pct_pct_delta,co2_emissions_t_pred,co2_emissions_t_pct_delta
+SCEN_001,Solar Boom 2030,TI5_2020-25,National,All,Standard,180,4,147860.01,+4.96%,44.45,-1.00%,179893740.73,+0.05%

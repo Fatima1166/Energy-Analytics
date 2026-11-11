@@ -56,9 +56,11 @@ def render_sidebar_unit_slicer(domains: list = None, in_expander: bool = True) -
     never offered a unit it does not use.  Order is preserved and unknown names
     are ignored.  When omitted, every known domain is shown.
     """
-    if domains:
+    if domains is not None:
         wanted = [d for d in domains if d in DOMAINS]
-        display_domains = wanted or list(DOMAIN_ORDER)
+        if not wanted:
+            return get_units()
+        display_domains = wanted
     else:
         display_domains = list(DOMAIN_ORDER)
 

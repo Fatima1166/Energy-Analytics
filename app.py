@@ -107,7 +107,7 @@ if callable(sidebar_fn):
 # ---------------- 2. Global unit selection ----------------
 # Only the unit families this dashboard actually renders are offered.
 # Drawn flat in the sidebar (no expander), the same way Home shows them.
-if selected.get("key") != "home":
+if selected.get("key") != "home" and selected.get("units"):
     render_sidebar_unit_slicer(selected.get("units"), in_expander=False)
 
 # ---------------- 3. Dashboard body ----------------

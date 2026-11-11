@@ -26,6 +26,15 @@ DASHBOARDS = [
         "units": ["energy", "electricity", "power", "gas", "emission"],
     },
     {
+        "key": "what_if_analysis",
+        "label": "What-If Analysis & WisRule",
+        "title": "What are the predicted values of these parameters based on the what-if analysis?",
+        "subtitle": "Cognitive WisRule Association Rules & Machine Learning What-If Prediction Engine",
+        "icon": "scenario",
+        "module": "dashboards.what_if_analysis.page",
+        "units": [],
+    },
+    {
         "key": "q2",
         "label": "Renewable Scenarios",
         "title": "What are the potential outcomes of installing renewable energy sources in different energy scenarios?",
