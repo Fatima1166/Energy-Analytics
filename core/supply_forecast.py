@@ -35,6 +35,21 @@ HISTORY_END = 2024
 FORECAST_START = 2025
 HORIZON = 2035
 
+# ── Dynamic year calculation based on database content ─────────────────────
+def _get_dynamic_years():
+    """Get latest year from database and compute forecast horizon dynamically."""
+    try:
+        from core.data_entry import get_latest_year
+        latest = get_latest_year()
+        horizon = latest + 10  # 10-year forecast horizon
+        return latest, latest + 1, horizon
+    except Exception:
+        # Fallback to hardcoded values if DB not accessible
+        return 2024, 2025, 2035
+
+# Update constants dynamically
+HISTORY_END, FORECAST_START, HORIZON = _get_dynamic_years()
+
 DEFAULT_CALIB_START = 2012
 DEFAULT_TEST_YEARS = 4
 BACKTEST_TRAIN_END = HISTORY_END - DEFAULT_TEST_YEARS  # 2020

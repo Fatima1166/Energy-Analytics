@@ -68,9 +68,24 @@ PROVENANCE_COLORS = {
 HISTORY_START = 1999          # first year in dim_year
 ELECTRICITY_START = 2000      # first year with grid demand reported
 FINAL_ENERGY_START = 2002     # first year with final-energy-by-source rows
-HISTORY_END = 2024            # last reported year
+HISTORY_END = 2024            # last reported year (updated dynamically below)
 FORECAST_START = 2025
-HORIZON = 2035
+HORIZON = 2035                # default, updated dynamically below
+
+# ── Dynamic year calculation based on database content ─────────────────────
+def _get_dynamic_years():
+    """Get latest year from database and compute forecast horizon dynamically."""
+    try:
+        from core.data_entry import get_latest_year
+        latest = get_latest_year()
+        horizon = latest + 10  # 10-year forecast horizon
+        return latest, latest + 1, horizon
+    except Exception:
+        # Fallback to hardcoded values if DB not accessible
+        return 2024, 2025, 2035
+
+# Update constants dynamically
+HISTORY_END, FORECAST_START, HORIZON = _get_dynamic_years()
 
 DEFAULT_CALIB_START = 2012    # calibration window default (start)
 DEFAULT_TEST_YEARS = 4        # hold-out = the last 4 reported years

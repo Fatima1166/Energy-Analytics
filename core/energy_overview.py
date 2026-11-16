@@ -98,6 +98,11 @@ def headline_snapshot(overview_df, gen_df, re_df, econ_df,
 
     Keys: year, supply_toe, demand_toe, generation_gwh, co2_t, re_share_pct
     and *_then counterparts with the year they belong to.
+
+    Every card shows the LATEST year its own metric has data for in the
+    database -- so when a new year is inserted (e.g. 2025), every card
+    automatically picks it up without any code change.  Each card wears its
+    own year label so the reader always knows which year the number is from.
     """
     sd = supply_demand_history(overview_df)
     g = _year_frame(gen_df, ["generation_gwh"])
@@ -107,7 +112,7 @@ def headline_snapshot(overview_df, gen_df, re_df, econ_df,
                              "gen_gas_gwh", "gen_nuclear_gwh"])
 
     def _pick(df, col):
-        """(year, now, then) for the latest non-NaN row of `col`."""
+        """(year, now, then, then_year) for the latest non-NaN row of `col`."""
         if df.empty or col not in df.columns:
             return (np.nan, np.nan, np.nan, None)
         s = df[["calendar_year", col]].dropna()

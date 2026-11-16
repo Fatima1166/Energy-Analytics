@@ -128,6 +128,15 @@ DASHBOARDS = [
         # Allocation (GWh), purchase cost (USD), CO₂ (t)
         "units": ["electricity", "cost", "emission"],
     },
+    {
+        "key": "data_entry",
+        "label": "Manage Energy Data",
+        "title": "Manage Energy Data",
+        "subtitle": "Add, edit, delete, or restore year data — only first or latest year can be deleted.",
+        "icon": "none",
+        "module": "dashboards.data_entry_form.page",
+        "units": [],
+    },
 ]
 
 
