@@ -42,6 +42,7 @@ from core.sustainability_engine import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor, fmt
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_pillar_scorecard,
@@ -248,13 +249,13 @@ def render() -> None:
     preset = flt.get("preset", PRESET_ORDER[0])
 
     ind = build_indicator_frame(
-        re_df=run_query(Q_RENEWABLE_ENERGY),
-        gen_df=run_query(Q_ELEC_GEN),
-        td_df=run_query(Q_TD_LOSSES),
-        ps_df=run_query(Q_PRIMARY_SUPPLY),
-        gas_df=run_query(Q_NATURAL_GAS),
-        lng_df=run_query(Q_LNG),
-        econ_df=run_query(Q_ECONOMIC),
+        re_df=filter_predicted_df(run_query(Q_RENEWABLE_ENERGY)),
+        gen_df=filter_predicted_df(run_query(Q_ELEC_GEN)),
+        td_df=filter_predicted_df(run_query(Q_TD_LOSSES)),
+        ps_df=filter_predicted_df(run_query(Q_PRIMARY_SUPPLY)),
+        gas_df=filter_predicted_df(run_query(Q_NATURAL_GAS)),
+        lng_df=filter_predicted_df(run_query(Q_LNG)),
+        econ_df=filter_predicted_df(run_query(Q_ECONOMIC)),
     )
     if ind is None or ind.empty:
         st.warning("The warehouse did not return enough years to score the pillars.")

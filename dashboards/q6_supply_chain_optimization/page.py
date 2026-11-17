@@ -46,6 +46,7 @@ from core.queries import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor
+from core.year_filter import get_year_filter, filter_historical_df
 
 from .charts import (
     visual1_score_over_time,
@@ -114,8 +115,13 @@ def sidebar() -> None:
     )
     preset = STRATEGIES[strategy]
 
+    start_year, end_year = get_year_filter()
+    min_yr = max(1999, start_year)
+    max_yr = min(2025, end_year)
+    if min_yr >= max_yr:
+        min_yr = max(1999, max_yr - 1)
     years = st.sidebar.slider(
-        "Years to judge", min_value=1999, max_value=2024, value=(2002, 2024), step=1,
+        "Years to judge", min_value=min_yr, max_value=max_yr, value=(min_yr, max_yr), step=1,
         key="q6_years",
         help=("Which years to score. The cards read the last year in this "
               "window, or the closest year before it that has a record."),
@@ -337,12 +343,12 @@ def render() -> None:
     year_start, year_end = int(year_range[0]), int(year_range[1])
 
     # --- Reported data ---
-    gen_df = run_query(Q_ELEC_GEN)
-    td_df = run_query(Q_TD_LOSSES)
-    ps_df = run_query(Q_PRIMARY_SUPPLY)
-    re_df = run_query(Q_RENEWABLE_ENERGY)
-    gas_df = run_query(Q_NATURAL_GAS)
-    lng_df = run_query(Q_LNG)
+    gen_df = filter_historical_df(run_query(Q_ELEC_GEN))
+    td_df = filter_historical_df(run_query(Q_TD_LOSSES))
+    ps_df = filter_historical_df(run_query(Q_PRIMARY_SUPPLY))
+    re_df = filter_historical_df(run_query(Q_RENEWABLE_ENERGY))
+    gas_df = filter_historical_df(run_query(Q_NATURAL_GAS))
+    lng_df = filter_historical_df(run_query(Q_LNG))
 
     def _window(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty or "calendar_year" not in df.columns:

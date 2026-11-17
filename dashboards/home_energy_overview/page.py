@@ -35,6 +35,7 @@ from core.queries import (
 )
 from core.unit_slicer import get_units, render_sidebar_unit_slicer
 from core.units import display_factor
+from core.year_filter import filter_historical_df, get_year_filter, is_filter_active
 from dashboards.registry import DASHBOARDS
 
 from .charts import (
@@ -777,9 +778,11 @@ def sidebar() -> None:
     """, unsafe_allow_html=True)
 
     st.sidebar.markdown('<div class="dsh-side-title">Data Coverage</div>', unsafe_allow_html=True)
-    st.sidebar.markdown("""
+    s_f, e_f = get_year_filter()
+    hist_label = f"{s_f}–{e_f}" if is_filter_active() else "2000–2024"
+    st.sidebar.markdown(f"""
     <div class="sb-spec-box">
-        <div class="sb-spec-row"><span>History</span><b>2000–2024 (25 Yrs)</b></div>
+        <div class="sb-spec-row"><span>History</span><b>{hist_label}</b></div>
         <div class="sb-spec-row"><span>Forecasts</span><b>2025–2035</b></div>
         <div class="sb-spec-row"><span>Data Sources</span><b>5 Authorities</b></div>
         <div class="sb-spec-row"><span>Dashboards</span><b>10 Analyses</b></div>
@@ -795,12 +798,12 @@ def render() -> None:
     st.markdown(_HOME_CSS, unsafe_allow_html=True)
 
     # ---------------- 1. Data Ingestion ----------------
-    ov = run_query(Q_ENERGY_OVERVIEW)
-    ge = run_query(Q_ELEC_GEN)
-    re = run_query(Q_RENEWABLE_ENERGY)
-    ps = run_query(Q_PRIMARY_SUPPLY)
-    ec = run_query(Q_ECONOMIC)
-    co2 = run_query(Q_CO2)
+    ov = filter_historical_df(run_query(Q_ENERGY_OVERVIEW))
+    ge = filter_historical_df(run_query(Q_ELEC_GEN))
+    re = filter_historical_df(run_query(Q_RENEWABLE_ENERGY))
+    ps = filter_historical_df(run_query(Q_PRIMARY_SUPPLY))
+    ec = filter_historical_df(run_query(Q_ECONOMIC))
+    co2 = filter_historical_df(run_query(Q_CO2))
 
     hist_sd = supply_demand_history(ov)
     hist_co2 = co2_history(ec, co2)

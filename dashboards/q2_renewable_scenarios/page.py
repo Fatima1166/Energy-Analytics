@@ -31,6 +31,7 @@ from core.projections import (
 from core.components import conclusion_card, kpi_card, section_title
 from core.units import fmt, from_base
 from core.unit_slicer import get_units
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_re_share_chart,
@@ -108,11 +109,13 @@ def _sidebar_filters():
         index=scenario_keys.index(DEFAULT_SCENARIO) if DEFAULT_SCENARIO in scenario_keys else 0,
     )
 
+    start_year, _ = get_year_filter()
+    min_yr = max(2000, start_year)
     year_range = st.sidebar.slider(
         "Years to show",
-        min_value=2000,
+        min_value=min_yr,
         max_value=2035,
-        value=(2000, 2035),
+        value=(min_yr, 2035),
         step=1,
         help=("Charts show these years. The cards use the last year you pick."),
     )
@@ -293,8 +296,8 @@ def render():
     filters = st.session_state.get(FILTERS_KEY) or _sidebar_filters()
 
     # Load data -- only the three queries this page actually reads
-    re_df = run_query(Q_RENEWABLE_ENERGY)
-    cap_df = run_query(Q_RENEWABLE_CAPACITY)
+    re_df = filter_predicted_df(run_query(Q_RENEWABLE_ENERGY))
+    cap_df = filter_predicted_df(run_query(Q_RENEWABLE_CAPACITY))
     ef_df = run_query(Q_EMISSION_FACTORS)
 
     e_u = units["electricity"]

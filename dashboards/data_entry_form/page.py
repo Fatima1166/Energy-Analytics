@@ -30,6 +30,12 @@ from core.data_entry import (
     get_first_year,
     get_latest_year,
 )
+from core.year_filter import (
+    get_year_filter,
+    set_year_filter,
+    reset_year_filter,
+    is_filter_active,
+)
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -268,8 +274,8 @@ def sidebar() -> None:
         'text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;">'
         'Data Management</div>'
         '<div style="color:#CBD5E1;font-size:12px;line-height:1.5;">'
-        'Add, edit, delete, or restore year data.<br>'
-        'Only the <b>first</b> or <b>latest</b> year can be deleted.</div>'
+        'Add, edit, delete, restore, or filter year data.<br>'
+        'Only first or latest year can be deleted.</div>'
         '</div>', unsafe_allow_html=True)
 
     st.sidebar.markdown(
@@ -314,16 +320,22 @@ def sidebar() -> None:
 
     st.sidebar.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
 
-    if st.sidebar.button("Restore Deleted", use_container_width=True,
-                         key="de_btn_restore",
-                         help="Restore a previously deleted year"):
-        st.session_state["de_mode"] = "restore"
-        st.rerun()
+    c3, c4 = st.sidebar.columns(2)
+    with c3:
+        if st.button("Filter", use_container_width=True, key="de_btn_filter",
+                     help="Filter dashboard data by starting & end year"):
+            st.session_state["de_mode"] = "filter"
+            st.rerun()
+    with c4:
+        if st.button("Restore", use_container_width=True, key="de_btn_restore",
+                     help="Restore a previously deleted year"):
+            st.session_state["de_mode"] = "restore"
+            st.rerun()
 
     st.sidebar.divider()
     st.sidebar.markdown(
         '<div style="color:#8B95A7;font-size:10px;text-transform:uppercase;'
-        'letter-spacing:1px;padding:4px 12px 4px;">Range</div>',
+        'letter-spacing:1px;padding:4px 12px 4px;">Database Range</div>',
         unsafe_allow_html=True)
     st.sidebar.markdown(
         f'<div style="color:#CBD5E1;font-size:11px;">'
@@ -334,7 +346,7 @@ def sidebar() -> None:
 
 def _mode_header(mode: str, year: int) -> None:
     if mode == "add":
-        title = f"Add New Year Data"
+        title = "Add New Year Data"
         sub = (f"Enter energy data for year <b>{year}</b>. "
                "Only sequential years are allowed (the year after the latest existing data). "
                "All dashboards will update automatically after saving.")
@@ -347,9 +359,16 @@ def _mode_header(mode: str, year: int) -> None:
         sub = (f"Delete all data for year <b>{year}</b>. "
                "Only the first or latest year can be deleted. "
                "A backup is kept so you can restore it later.")
-    else:
+    elif mode == "restore":
         title = "Restore Deleted Year"
-        sub = ("Restore a previously deleted year's data from backup.")
+        sub = "Restore a previously deleted year's data from backup."
+    elif mode == "filter":
+        title = "Filter Dashboards by Year Range"
+        sub = ("Select a <b>Starting Year</b> and an <b>End Year</b> to filter data across all dashboards. "
+               "Historical dashboards filter between starting and end years; predicted/forecast dashboards update their starting year while keeping projections to 2035 active.")
+    else:
+        title = "Manage Energy Data"
+        sub = "Add, edit, delete, restore, and filter energy data across dashboards."
 
     st.markdown(
         f'<div class="de-panel">'
@@ -674,6 +693,85 @@ def render() -> None:
 
     _mode_header(mode, year)
 
+    # ── FILTER mode: starting year & end year selection ──────────────────────
+
+    if mode == "filter":
+        all_years = get_all_years()
+        cur_start, cur_end = get_year_filter()
+
+        start_idx = all_years.index(cur_start) if cur_start in all_years else 0
+
+        st.markdown(
+            '<div class="de-section">'
+            '<div class="de-section-title">Select Year Range Filter</div>',
+            unsafe_allow_html=True)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            start_yr = st.selectbox(
+                "Starting Year",
+                options=all_years,
+                index=start_idx,
+                key="filter_input_start",
+                help="Initial year for historical analysis and starting baseline for predicted models across all dashboards."
+            )
+
+        with c2:
+            valid_end_years = [y for y in all_years if y >= start_yr]
+            end_idx = valid_end_years.index(cur_end) if cur_end in valid_end_years else len(valid_end_years) - 1
+            end_yr = st.selectbox(
+                "End Year",
+                options=valid_end_years,
+                index=end_idx,
+                key="filter_input_end",
+                help="Final year for historical dashboards."
+            )
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        col_b1, col_b2, col_b3 = st.columns([1, 1, 2])
+        with col_b1:
+            if st.button("Apply Filter", type="primary", use_container_width=True, key="btn_apply_filter"):
+                set_year_filter(start_yr, end_yr)
+                st.session_state["de_filter_msg"] = f"Filter successfully applied: {start_yr} – {end_yr}. All dashboards updated!"
+                st.rerun()
+
+        with col_b2:
+            if st.button("Reset Filter", use_container_width=True, key="btn_reset_filter"):
+                reset_year_filter()
+                st.session_state["de_filter_msg"] = "Filter reset to full range (all available years)."
+                st.rerun()
+
+        msg = st.session_state.pop("de_filter_msg", None)
+        if msg:
+            st.success(msg)
+
+        # Status summary
+        s_active, e_active = get_year_filter()
+        active_status = is_filter_active()
+
+        status_badge = (
+            f'<span style="background:rgba(16,185,129,0.2);color:#10B981;padding:3px 10px;border-radius:12px;font-weight:700;">'
+            f'FILTER ACTIVE ({s_active} – {e_active})</span>'
+            if active_status else
+            f'<span style="background:rgba(56,189,248,0.2);color:#38BDF8;padding:3px 10px;border-radius:12px;font-weight:700;">'
+            f'FULL DATASET (ALL YEARS: {all_years[0]} – {all_years[-1]})</span>'
+        )
+
+        st.markdown(
+            f'<div class="de-info" style="font-size:13px;line-height:1.7;">'
+            f'<b>Active Status:</b> {status_badge}<br><br>'
+            f'<b>Filtering Behavior Across Dashboards:</b><br>'
+            f'• <b>Historical Dashboards (Home, Q6 Supply Chain, Q9 Operational Bottlenecks):</b> '
+            f'Data strictly bounded to <b>{s_active} – {e_active}</b>.<br>'
+            f'• <b>Forecast / Prediction Dashboards (Q1, Q2, Q3, Q4, Q5, Q7, Q8, Q10):</b> '
+            f'Only starting year is updated to <b>{s_active}</b>; future projections and horizon ranges continue to <b>2035</b> without truncation.'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        return
+
     # ── DELETE / RESTORE modes: confirmation only, no form ───────────────────
 
     if mode == "delete":
@@ -799,6 +897,7 @@ def render() -> None:
         '• <b>Edit:</b> Any existing year can be modified<br>'
         '• <b>Delete:</b> Only the first or latest year (no mid-year deletion)<br>'
         '• <b>Restore:</b> Restore a previously deleted year from backup<br>'
+        '• <b>Filter:</b> Set global starting and end year range across all dashboards<br>'
         '• All values must be positive numbers<br>'
         '• Supply should be ≥ Consumption'
         '</div>',

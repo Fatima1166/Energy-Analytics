@@ -34,6 +34,7 @@ from core.queries import (
 from core.targets import KPI_SPEC, load_targets
 from core.unit_slicer import get_units
 from core.units import display_factor, normalise
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_loss_waterfall,
@@ -78,11 +79,13 @@ def _sidebar_filters() -> dict:
         '<div class="dsh-side-title">Years</div>',
         unsafe_allow_html=True,
     )
+    start_year, _ = get_year_filter()
+    min_yr = max(VIEW_START, start_year)
     year_range = st.sidebar.slider(
         "Years to show",
-        min_value=VIEW_START,
+        min_value=min_yr,
         max_value=HORIZON,
-        value=DEFAULT_RANGE,
+        value=(min_yr, HORIZON),
         step=1,
         key="q3_year_range",
         help=("Charts show these years. The cards use the last year you pick."),
@@ -234,10 +237,10 @@ def render():
 
     # Fetch data
     try:
-        overview_df = run_query(Q_ENERGY_OVERVIEW)
-        primary_df = run_query(Q_PRIMARY_SUPPLY)
-        re_df = run_query(Q_RENEWABLE_ENERGY)
-        gas_df = run_query(Q_NATURAL_GAS)
+        overview_df = filter_predicted_df(run_query(Q_ENERGY_OVERVIEW))
+        primary_df = filter_predicted_df(run_query(Q_PRIMARY_SUPPLY))
+        re_df = filter_predicted_df(run_query(Q_RENEWABLE_ENERGY))
+        gas_df = filter_predicted_df(run_query(Q_NATURAL_GAS))
     except Exception as exc:
         st.error(f"Could not load energy data: {exc}")
         st.stop()

@@ -13,6 +13,7 @@ from core.auth import (
 from core.styles import inject_css
 from core.icons import icon
 from core.unit_slicer import render_sidebar_unit_slicer
+from core.year_filter import get_year_filter, is_filter_active
 from dashboards.registry import DASHBOARDS, load_dashboard_module
 
 # ---------------- Page Config ----------------
@@ -79,6 +80,15 @@ selected_label = st.sidebar.selectbox("nav", labels, label_visibility="collapsed
 selected = next(d for d in DASHBOARDS if d["label"] == selected_label)
 
 st.sidebar.divider()
+
+if is_filter_active():
+    s_f, e_f = get_year_filter()
+    st.sidebar.markdown(
+        f'<div style="margin: 0 12px 10px; padding: 6px 10px; background: rgba(56, 189, 248, 0.12); '
+        f'border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; font-size: 11px; color: #38BDF8;">'
+        f'<span style="font-weight:700;">Year Filter Active:</span> {s_f} – {e_f}</div>',
+        unsafe_allow_html=True
+    )
 
 # ---------------- Header (dynamic per dashboard) ----------------
 # One shared header card for every dashboard, Home included.

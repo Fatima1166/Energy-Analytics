@@ -45,6 +45,7 @@ from core.supply_forecast import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor, fmt
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_history_trajectory,
@@ -251,12 +252,12 @@ def render() -> None:
 
     # Fetch data -- four tables, and every one of them ends up on a card or a chart.
     try:
-        ec_df = run_query(Q_ECONOMIC)
+        ec_df = filter_predicted_df(run_query(Q_ECONOMIC))
         data = build_supply_dashboard_data(
-            primary_df=run_query(Q_PRIMARY_SUPPLY),
-            re_df=run_query(Q_RENEWABLE_ENERGY),
+            primary_df=filter_predicted_df(run_query(Q_PRIMARY_SUPPLY)),
+            re_df=filter_predicted_df(run_query(Q_RENEWABLE_ENERGY)),
             econ_df=ec_df,
-            gen_df=run_query(Q_ELEC_GEN),
+            gen_df=filter_predicted_df(run_query(Q_ELEC_GEN)),
             scenarios=scenarios,
             calib_start=DEFAULT_CALIB_START,
             horizon=horizon,
@@ -279,7 +280,7 @@ def render() -> None:
 
     # The numbers the three cards read: supply now, supply at the horizon, and
     # whether that supply covers demand.
-    hist = data["history"]
+    hist = filter_predicted_df(data["history"])
     forecast = data["forecast"]
     adequacy = data["adequacy"]
     if hist.empty:

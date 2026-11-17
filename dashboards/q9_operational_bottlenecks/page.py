@@ -38,6 +38,7 @@ from core.operational_bottlenecks import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor, fmt
+from core.year_filter import get_year_filter, filter_historical_df
 
 from . import charts
 from .config import (
@@ -84,11 +85,17 @@ def sidebar() -> None:
     st.sidebar.markdown('<div class="dsh-side-title">Operational Bottlenecks</div>',
                         unsafe_allow_html=True)
 
+    start_year, end_year = get_year_filter()
+    min_yr = max(BASE_YEAR_MIN, start_year)
+    max_yr = min(BASE_YEAR_MAX, end_year)
+    if min_yr > max_yr:
+        min_yr = max_yr
+
     base_year = st.sidebar.slider(
         "Year to judge",
-        min_value=BASE_YEAR_MIN,
-        max_value=BASE_YEAR_MAX,
-        value=DEFAULT_BASE_YEAR,
+        min_value=min_yr,
+        max_value=max_yr,
+        value=max_yr,
         step=1,
         key="q9_base_year",
         help="Everything is read no later than this year.  Each measure then uses "
@@ -193,12 +200,12 @@ def render() -> None:
     # ── 1. Fetch raw frames (the only I/O in this module) ────────────────────
     try:
         df = build_bottleneck_frame(
-            gen_df=run_query(Q_ELEC_GEN),
-            re_df=run_query(Q_RENEWABLE_ENERGY),
-            re_cap_df=run_query(Q_RENEWABLE_CAPACITY),
-            td_df=run_query(Q_TD_LOSSES),
-            gas_df=run_query(Q_NATURAL_GAS),
-            ps_df=run_query(Q_PRIMARY_SUPPLY),
+            gen_df=filter_historical_df(run_query(Q_ELEC_GEN)),
+            re_df=filter_historical_df(run_query(Q_RENEWABLE_ENERGY)),
+            re_cap_df=filter_historical_df(run_query(Q_RENEWABLE_CAPACITY)),
+            td_df=filter_historical_df(run_query(Q_TD_LOSSES)),
+            gas_df=filter_historical_df(run_query(Q_NATURAL_GAS)),
+            ps_df=filter_historical_df(run_query(Q_PRIMARY_SUPPLY)),
         )
     except Exception as exc:  # pragma: no cover — presentation guard
         st.error(f"Bottleneck engine failed: {exc}")

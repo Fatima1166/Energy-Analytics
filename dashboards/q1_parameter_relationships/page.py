@@ -36,6 +36,7 @@ from core.queries import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor
+from core.year_filter import get_year_filter
 
 from .charts import (
     visual1_corr_heatmap,
@@ -85,18 +86,13 @@ def _unit_for(family: str, stored: str) -> tuple:
 # --- Sidebar controls ---
 
 def _enforce_min_span() -> None:
-    """Push the picked range back to MIN_SPAN years, before the app reruns.
-
-    The engine needs MIN_PAIR_OBS (6) joint years before it will compute a
-    correlation, so the range is clamped here -- in a callback the new value
-    is corrected before the slider is re-read, keeping the handles and the
-    charts in sync.
-    """
     lo, hi = st.session_state["q1_period"]
     lo, hi = int(lo), int(hi)
+    s_yr, _ = get_year_filter()
+    cur_min = max(YEAR_MIN, s_yr)
     if hi - lo + 1 < MIN_SPAN:
         hi = min(lo + MIN_SPAN - 1, YEAR_MAX)
-        lo = max(hi - MIN_SPAN + 1, YEAR_MIN)
+        lo = max(hi - MIN_SPAN + 1, cur_min)
         st.session_state["q1_period"] = (lo, hi)
 
 
@@ -110,11 +106,18 @@ def sidebar() -> None:
     st.sidebar.markdown('<div class="dsh-side-title">Analysis Period</div>',
                         unsafe_allow_html=True)
 
+    s_yr, _ = get_year_filter()
+    cur_min = max(YEAR_MIN, s_yr)
+    val_lo = max(cur_min, DEFAULT_PERIOD[0])
+    val_hi = min(YEAR_MAX, DEFAULT_PERIOD[1])
+    if val_hi <= val_lo:
+        val_hi = min(val_lo + MIN_SPAN, YEAR_MAX)
+
     period = st.sidebar.slider(
         "Analysis period",
-        min_value=YEAR_MIN,
+        min_value=cur_min,
         max_value=YEAR_MAX,
-        value=(max(YEAR_MIN, DEFAULT_PERIOD[0]), min(YEAR_MAX, DEFAULT_PERIOD[1])),
+        value=(val_lo, val_hi),
         step=1,
         format="%d",
         key="q1_period",

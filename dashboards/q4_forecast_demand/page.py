@@ -42,6 +42,7 @@ from core.queries import (
 )
 from core.unit_slicer import get_units
 from core.units import display_factor, fmt, normalise
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_history_trends,
@@ -188,24 +189,25 @@ def render() -> None:
     horizon = int(filters.get("horizon", HORIZON))
     base_scenario = "Base" if "Base" in scenarios else scenarios[0]
 
+    start_year, _ = get_year_filter()
+    view_start = max(2000, start_year)
+
     energy_unit = normalise(units.get("energy", "TOE"))
     elec_unit = normalise(units.get("electricity", "GWh"))
     e_factor = display_factor("energy", energy_unit)
     g_factor = display_factor("electricity", elec_unit)
 
-    # Fetch data.  The supply and province tables are handed over empty on
-    # purpose: what supply will do is Question 5's answer, and every table here
-    # is a MySQL round trip this page would otherwise throw away.
+    # Fetch data.
     try:
-        econ_df = run_query(Q_ECONOMIC)
+        econ_df = filter_predicted_df(run_query(Q_ECONOMIC))
         data = build_dashboard_data(
-            fuel_df=run_query(Q_FINAL_ENERGY_BY_SOURCE),
-            re_df=run_query(Q_RENEWABLE_ENERGY),
+            fuel_df=filter_predicted_df(run_query(Q_FINAL_ENERGY_BY_SOURCE)),
+            re_df=filter_predicted_df(run_query(Q_RENEWABLE_ENERGY)),
             econ_df=econ_df,
             primary_df=pd.DataFrame(),
             gen_df=pd.DataFrame(),
             gas_df=pd.DataFrame(),
-            sector_df=run_query(Q_ELEC_SECTOR_CONSUMPTION),
+            sector_df=filter_predicted_df(run_query(Q_ELEC_SECTOR_CONSUMPTION)),
             province_df=pd.DataFrame(),
             scenarios=scenarios,
             calib_start=DEFAULT_CALIB_START,
@@ -278,11 +280,11 @@ def render() -> None:
     # --- Visual 1: what demand has actually done ---
     st.markdown(
         section_title("Visual 1 – Demand so far", "chart",
-                      badge=f"{VIEW_START}–{HISTORY_END} · {energy_unit}"),
+                      badge=f"{view_start}–{HISTORY_END} · {energy_unit}"),
         unsafe_allow_html=True)
-    st.caption(f"How much energy the country has used each year — all energy, electricity and gas — and how each one has grown since {VIEW_START}.")
+    st.caption(f"How much energy the country has used each year — all energy, electricity and gas — and how each one has grown since {view_start}.")
     st.plotly_chart(
-        visual1_history_trends(hist, HISTORY_SERIES_FOR_CHARTS, (VIEW_START, HISTORY_END),
+        visual1_history_trends(hist, HISTORY_SERIES_FOR_CHARTS, (view_start, HISTORY_END),
                                unit_energy=energy_unit, break_year=total_break,
                                factor=e_factor),
         use_container_width=True, config=_CHART_CONFIG)

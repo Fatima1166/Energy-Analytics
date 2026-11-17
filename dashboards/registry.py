@@ -132,7 +132,7 @@ DASHBOARDS = [
         "key": "data_entry",
         "label": "Manage Energy Data",
         "title": "Manage Energy Data",
-        "subtitle": "Add, edit, delete, or restore year data — only first or latest year can be deleted.",
+        "subtitle": "Add, edit, delete, restore, or filter year data across all dashboards.",
         "icon": "none",
         "module": "dashboards.data_entry_form.page",
         "units": [],

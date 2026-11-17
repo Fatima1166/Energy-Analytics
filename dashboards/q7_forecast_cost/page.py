@@ -43,6 +43,7 @@ from core.icons import icon
 from core.queries import Q_ECONOMIC, Q_RENEWABLE_ENERGY
 from core.unit_slicer import get_units
 from core.units import display_factor, fmt
+from core.year_filter import get_year_filter, filter_predicted_df
 
 from .charts import (
     visual1_cost_so_far,
@@ -182,13 +183,13 @@ def render() -> None:
     active_word = CASE_WORDS.get(active, active)
 
     data = build_cost_dashboard_data(
-        re_df=run_query(Q_RENEWABLE_ENERGY),
-        econ_df=run_query(Q_ECONOMIC),
+        re_df=filter_predicted_df(run_query(Q_RENEWABLE_ENERGY)),
+        econ_df=filter_predicted_df(run_query(Q_ECONOMIC)),
         scenarios=cases,
         horizon=horizon,
     )
 
-    hist = data["history"]
+    hist = filter_predicted_df(data["history"])
     fc = data["forecast"]
     if hist is None or hist.empty or fc is None or fc.empty:
         st.warning("Not enough reported years to work out what producers were paid.")
