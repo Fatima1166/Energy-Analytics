@@ -17,7 +17,7 @@ DASHBOARDS = [
     {
         "key": "q1",
         "label": "Parameter Relationships",
-        "title": "What have been the relationships among different parameters of energy over a given period of time? What are the predicted values of these parameters based on the what-if analysis?",
+        "title": "What have been the relationships among different parameters of energy over a given period of time?",
         "subtitle": "Question 1 Analysis  •  Correlation Web, Top Pairs, Pair Explorer, Rolling Stability & What-if Forecast (1999–2035)",
         "icon": "data",
         "module": "dashboards.q1_parameter_relationships.page",
