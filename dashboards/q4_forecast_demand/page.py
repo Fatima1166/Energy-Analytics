@@ -36,6 +36,7 @@ from core.demand_forecast import (
 )
 from core.queries import (
     Q_ECONOMIC,
+    Q_ELEC_PROVINCE_CONSUMPTION,
     Q_ELEC_SECTOR_CONSUMPTION,
     Q_FINAL_ENERGY_BY_SOURCE,
     Q_RENEWABLE_ENERGY,
@@ -49,6 +50,7 @@ from .charts import (
     visual2_scenario_fans,
     visual3_sector_mix,
     visual4_reliability,
+    visual5_province_trends,
 )
 
 VIEW_START = 2000
@@ -208,7 +210,7 @@ def render() -> None:
             gen_df=pd.DataFrame(),
             gas_df=pd.DataFrame(),
             sector_df=filter_predicted_df(run_query(Q_ELEC_SECTOR_CONSUMPTION)),
-            province_df=pd.DataFrame(),
+            province_df=filter_predicted_df(run_query(Q_ELEC_PROVINCE_CONSUMPTION)),
             scenarios=scenarios,
             calib_start=DEFAULT_CALIB_START,
             horizon=horizon,
@@ -225,7 +227,7 @@ def render() -> None:
     breaks = data.get("breaks", {})
     total_break = breaks.get("total_final")
 
-    # KPI cards -- the three numbers the question asks for
+    # KPI cards -- the three numbers the question asks for plus provincial leader
     total = kpis.get("total_final", {})
     grid = kpis.get("elec_grid", {})
     cagr = kpis.get("demand_cagr", {})
@@ -236,6 +238,30 @@ def render() -> None:
     grid_now = _num(grid.get("value")) * g_factor
     grid_horizon = _num(grid.get("horizon_value")) * g_factor
     grid_change = _pct_change(grid_now, grid_horizon)
+
+    prov_data = data.get("provinces", {})
+    prov_hist = prov_data.get("history")
+    prov_proj = prov_data.get("projection")
+    prov_base_year = prov_data.get("base_year", HISTORY_END)
+    top_prov_name = "Punjab"
+    top_prov_val = 0.0
+    top_prov_horizon = 0.0
+    top_prov_share = 0.0
+
+    if prov_hist is not None and not prov_hist.empty and prov_base_year is not None:
+        sub_base = prov_hist[prov_hist["calendar_year"] == prov_base_year]
+        if not sub_base.empty:
+            top_row = sub_base.sort_values("value", ascending=False).iloc[0]
+            top_prov_name = str(top_row["key"])
+            top_prov_val = _num(top_row["value"]) * g_factor
+            top_prov_share = _num(top_row.get("share", 0.0)) * 100.0
+
+    if prov_proj is not None and not prov_proj.empty:
+        sub_fut = prov_proj[(prov_proj["key"] == top_prov_name)
+                            & (prov_proj["scenario"] == base_scenario)
+                            & (prov_proj["calendar_year"] == int(horizon))]
+        if not sub_fut.empty:
+            top_prov_horizon = _num(sub_fut.iloc[0]["value"]) * g_factor
 
     cards = [
         _kpi_card(
@@ -266,11 +292,17 @@ def render() -> None:
             accent="#A78BFA", icon_name="scenario",
             badge=f"to {horizon}", badge_colour="#A78BFA",
         ),
+        _kpi_card(
+            "K4", f"Top province demand ({top_prov_name}), {prov_base_year}",
+            fmt(top_prov_val), elec_unit,
+            [(f"By {horizon}", fmt(top_prov_horizon), "#E2E8F0"),
+             ("National share", f"{top_prov_share:.1f}%", "#10B981"),
+             ("Scenario", base_scenario, SCENARIO_COLORS.get(base_scenario, "#00A6FB"))],
+            accent="#F59E0B", icon_name="demand",
+            badge=f"{top_prov_name} leading to {horizon}", badge_colour="#F59E0B",
+        ),
     ]
 
-    # The row is cut into four slots like every other dashboard's KPI strip, but
-    # only three cards go in it -- the fourth slot stays blank, so each card keeps
-    # the width a four-up row gives it instead of stretching over the space.
     st.markdown(_CARD_CSS, unsafe_allow_html=True)
     for column, card in zip(st.columns(4), cards):
         column.markdown(card, unsafe_allow_html=True)
@@ -328,6 +360,17 @@ def render() -> None:
             visual4_reliability(metrics, train_end, HISTORY_END),
             use_container_width=True, config=_CHART_CONFIG)
 
+    # --- Visual 5: Provincial electricity demand trajectory ---
+    st.markdown(
+        section_title("Visual 5 – Provincial demand trajectory", "chart",
+                      badge=f"{view_start}–{horizon} · {elec_unit}"),
+        unsafe_allow_html=True)
+    st.caption(f"Historical electricity consumption per province and projected growth paths to {horizon}. Solid lines are measured; dashed lines are forecasts.")
+    st.plotly_chart(
+        visual5_province_trends(data["provinces"], horizon, (view_start, HISTORY_END),
+                               unit_elec=elec_unit, factor=g_factor, scenario=base_scenario),
+        use_container_width=True, config=_CHART_CONFIG)
+
     # ---- Bottom line ----
     line1 = (f"In the {base_scenario} case, total energy demand grows "
              f"{total_change:+.1f}% to {fmt(total_horizon)} {energy_unit} by "
@@ -335,4 +378,6 @@ def render() -> None:
     line2 = (f"Electricity demand moves {grid_change:+.1f}% to "
              f"{fmt(grid_horizon)} {elec_unit} — new plants should be planned "
              "around that bigger number.")
-    st.markdown(conclusion_card([line1, line2]), unsafe_allow_html=True)
+    line3 = (f"At the provincial level, {top_prov_name} accounts for {top_prov_share:.1f}% of national demand, "
+             f"projected to consume {fmt(top_prov_horizon)} {elec_unit} by {horizon}.")
+    st.markdown(conclusion_card([line1, line2, line3]), unsafe_allow_html=True)

@@ -8,6 +8,7 @@ V1  Demand so far        -- electricity, gas and total energy, in real terms
 V2  Scenario paths       -- the low, planned and high demand futures
 V3  Sector mix           -- which sectors use the electricity
 V4  Trust in the guess   -- how far off the model was on years it had not seen
+V5  Province trajectory  -- historical and projected provincial demand over time
 
 Every forecast year is drawn dashed and every year we measured is drawn solid,
 so a guessed point is never mistaken for a real one.
@@ -279,3 +280,77 @@ def visual4_reliability(metrics: pd.DataFrame, train_end: int, test_end: int):
                        text=f"Tested on {int(train_end) + 1}–{int(test_end)}",
                        showarrow=False, font=dict(size=10, color="#94A3B8"))
     return _dark_theme(fig, height=400, legend_h=False, x_title="Average error (%)  — shorter bar is better", y_title="What the model forecasts")
+
+
+# ═════════════════ V5: provincial demand trajectories ═════════════════════════
+
+PROVINCE_COLORS = {
+    "Punjab": "#00A6FB",         # Electric Blue
+    "Sindh": "#10B981",          # Emerald Green
+    "KPK": "#F59E0B",            # Amber Orange
+    "Balochistan": "#A78BFA",    # Vivid Violet
+    "AJK": "#EC4899",            # Pink / Rose
+}
+_DEFAULT_PROV_COLOR = "#94A3B8"
+
+
+def visual5_province_trends(provinces: dict, horizon: int, year_range: tuple,
+                            unit_elec: str = "GWh", factor: float = 1.0,
+                            scenario: str = "Base"):
+    """Historical electricity consumption per province and projected paths to horizon."""
+    history = provinces.get("history") if provinces else None
+    projection = provinces.get("projection") if provinces else None
+    if history is None or history.empty:
+        return _empty_fig("No provincial trajectory data to show")
+
+    base_year = provinces.get("base_year")
+    start_year = year_range[0] if year_range else 2002
+
+    base_reported = (history[history["calendar_year"] == base_year]
+                     .groupby("key")["value"].sum() * factor)
+    active = [k for k, v in base_reported.items() if v > 10.0]
+    if not active:
+        active = base_reported.index.tolist()
+    order = base_reported[active].sort_values(ascending=False).index.tolist()
+
+    fig = go.Figure()
+    for prov in order:
+        color = PROVINCE_COLORS.get(prov, _DEFAULT_PROV_COLOR)
+        h_sub = history[(history["key"] == prov) & (history["calendar_year"] >= start_year)].sort_values("calendar_year")
+        if h_sub.empty:
+            continue
+
+        x_hist = h_sub["calendar_year"].tolist()
+        y_hist = (h_sub["value"] * factor).tolist()
+
+        fig.add_trace(go.Scatter(
+            x=x_hist, y=y_hist, mode="lines+markers",
+            name=prov, legendgroup=prov,
+            line=dict(color=color, width=2.2),
+            marker=dict(size=4, color=color),
+            hovertemplate=f"<b>{prov}</b> (Measured)<br>%{{x}}: <b>%{{y:,.0f}} {unit_elec}</b><extra></extra>",
+            connectgaps=False,
+        ))
+
+        if projection is not None and not projection.empty and base_year is not None:
+            p_sub = projection[(projection["key"] == prov) &
+                               (projection["scenario"] == scenario) &
+                               (projection["calendar_year"] <= int(horizon))].sort_values("calendar_year")
+            if not p_sub.empty:
+                last_hist_val = y_hist[-1]
+                x_proj = [int(base_year)] + p_sub["calendar_year"].tolist()
+                y_proj = [last_hist_val] + (p_sub["value"] * factor).tolist()
+                fig.add_trace(go.Scatter(
+                    x=x_proj, y=y_proj, mode="lines+markers",
+                    name=f"{prov} (Forecast)", legendgroup=prov,
+                    showlegend=False,
+                    line=dict(color=color, width=2.0, dash="dash"),
+                    marker=dict(size=4, color=color, symbol="circle-open"),
+                    hovertemplate=f"<b>{prov}</b> ({scenario} Forecast)<br>%{{x}}: <b>%{{y:,.0f}} {unit_elec}</b><extra></extra>",
+                    connectgaps=False,
+                ))
+
+    _boundary(fig, base_year, "Measured here ◀ | ▶ Forecast")
+    fig.update_xaxes(title_text="Year")
+    fig.update_yaxes(title_text=f"Electricity demand ({unit_elec})")
+    return _dark_theme(fig, height=380, x_title="Year", y_title=f"Electricity demand ({unit_elec})")
